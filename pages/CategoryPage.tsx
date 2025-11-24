@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArticleCard } from '../components/ArticleCard';
+import { Pagination } from '../components/Pagination';
 import { fetchNewsArticles } from '../services/geminiService';
 import { Article, Category } from '../types';
 import { Loader2 } from 'lucide-react';
@@ -14,6 +15,11 @@ interface CategoryPageProps {
 export const CategoryPage: React.FC<CategoryPageProps> = ({ category, title, subtitle }) => {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 6;
+
   const navigate = useNavigate();
 
   const loadArticles = useCallback(async () => {
@@ -21,6 +27,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ category, title, sub
     try {
       const data = await fetchNewsArticles(category);
       setArticles(data);
+      setCurrentPage(1); // Reset to first page on new category load
     } catch (error) {
       console.error("Failed to load articles", error);
     } finally {
@@ -38,6 +45,13 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ category, title, sub
       navigate(`/article/${id}`, { state: { article } });
     }
   };
+
+  // Calculate Pagination
+  const totalPages = Math.ceil(articles.length / ITEMS_PER_PAGE);
+  const currentArticles = articles.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="min-h-screen">
@@ -68,15 +82,31 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ category, title, sub
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {articles.map((article) => (
-              <ArticleCard 
-                key={article.id} 
-                article={article} 
-                onClick={handleArticleClick}
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {currentArticles.map((article) => (
+                <ArticleCard 
+                  key={article.id} 
+                  article={article} 
+                  onClick={handleArticleClick}
+                />
+              ))}
+            </div>
+            
+            {articles.length > ITEMS_PER_PAGE && (
+              <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
               />
-            ))}
-          </div>
+            )}
+
+            {articles.length === 0 && (
+              <div className="text-center py-12 text-gray-400 italic">
+                Belum ada berita di kategori ini.
+              </div>
+            )}
+          </>
         )}
     </div>
   );

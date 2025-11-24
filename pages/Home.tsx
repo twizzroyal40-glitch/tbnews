@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { fetchNewsArticles } from '../services/geminiService';
 import { Article, Category } from '../types';
 import { ArticleCard } from '../components/ArticleCard';
-import { ChevronRight, Loader2, TrendingUp, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Loader2, TrendingUp, ShieldCheck, ChevronLeft } from 'lucide-react';
 
 export const Home: React.FC = () => {
   const [featuredArticles, setFeaturedArticles] = useState<Article[]>([]);
   const [latestArticles, setLatestArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Carousel State
+  const [currentSlide, setCurrentSlide] = useState(0);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,8 +21,12 @@ export const Home: React.FC = () => {
       try {
         // Fetch generic home news
         const news = await fetchNewsArticles(Category.HOME);
-        setFeaturedArticles(news.slice(0, 1));
-        setLatestArticles(news.slice(1));
+        
+        // Ambil 3 berita pertama untuk Carousel (Sebelumnya 5)
+        setFeaturedArticles(news.slice(0, 3));
+        
+        // Sisanya untuk list "Terkini" (Mulai dari indeks ke-3)
+        setLatestArticles(news.slice(3));
       } catch (e) {
         console.error(e);
       } finally {
@@ -27,6 +35,26 @@ export const Home: React.FC = () => {
     };
     initData();
   }, []);
+
+  // Auto-play Carousel Logic
+  useEffect(() => {
+    if (featuredArticles.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev === featuredArticles.length - 1 ? 0 : prev + 1));
+    }, 5000); // Ganti slide setiap 5 detik
+
+    return () => clearInterval(interval);
+  }, [featuredArticles.length]);
+
+  const nextSlide = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentSlide((prev) => (prev === featuredArticles.length - 1 ? 0 : prev + 1));
+  };
+
+  const prevSlide = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentSlide((prev) => (prev === 0 ? featuredArticles.length - 1 : prev - 1));
+  };
 
   const handleArticleClick = (id: string) => {
     const all = [...featuredArticles, ...latestArticles];
@@ -49,7 +77,7 @@ export const Home: React.FC = () => {
 
   return (
     <div className="space-y-12">
-      {/* Featured Section */}
+      {/* Featured Carousel Section */}
       <section>
         <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-2">
@@ -58,15 +86,65 @@ export const Home: React.FC = () => {
             </div>
         </div>
         
-        {featuredArticles.map(article => (
-          <div key={article.id} className="mb-6">
-             <ArticleCard 
-                article={article} 
-                onClick={handleArticleClick} 
-                featured={true}
-             />
+        {featuredArticles.length > 0 && (
+          <div className="relative w-full h-[400px] md:h-[500px] rounded-2xl overflow-hidden group shadow-lg border border-gray-100">
+             {/* Slides Container */}
+             <div 
+               className="flex h-full transition-transform duration-500 ease-out"
+               style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+             >
+                {featuredArticles.map((article) => (
+                   <div 
+                     key={article.id} 
+                     className="w-full h-full flex-shrink-0 relative cursor-pointer"
+                     onClick={() => handleArticleClick(article.id)}
+                   >
+                      <img 
+                        src={article.imageUrl} 
+                        alt={article.title} 
+                        className="w-full h-full object-cover"
+                      />
+                      {/* Gradient Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
+                      
+                      {/* Content Overlay - Simplified: Only Title */}
+                      <div className="absolute bottom-0 left-0 w-full p-6 md:p-10 text-white">
+                         <h3 className="text-2xl md:text-4xl font-serif font-bold leading-tight mb-2 line-clamp-3 hover:text-red-200 transition-colors shadow-sm">
+                            {article.title}
+                         </h3>
+                      </div>
+                   </div>
+                ))}
+             </div>
+
+             {/* Navigation Arrows */}
+             <button 
+               onClick={prevSlide}
+               className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-primary/80 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 transform -translate-x-4 group-hover:translate-x-0"
+             >
+                <ChevronLeft size={24} />
+             </button>
+             <button 
+               onClick={nextSlide}
+               className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-primary/80 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0"
+             >
+                <ChevronRight size={24} />
+             </button>
+
+             {/* Dots Indicator */}
+             <div className="absolute bottom-4 right-4 md:right-10 flex space-x-2 z-10">
+                {featuredArticles.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={(e) => { e.stopPropagation(); setCurrentSlide(idx); }}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      currentSlide === idx ? 'w-8 bg-primary' : 'w-2 bg-white/50 hover:bg-white'
+                    }`}
+                  />
+                ))}
+             </div>
           </div>
-        ))}
+        )}
       </section>
 
       {/* Latest News Grid */}
@@ -76,21 +154,30 @@ export const Home: React.FC = () => {
               <TrendingUp className="text-primary mr-2" />
               Terkini
             </h2>
-            <button className="text-sm font-semibold text-primary hover:text-primary-dark flex items-center group">
+            <button 
+              onClick={() => navigate('/terkini')}
+              className="text-sm font-semibold text-primary hover:text-primary-dark flex items-center group"
+            >
               Lihat Semua
               <ChevronRight className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" />
             </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {latestArticles.map(article => (
-              <ArticleCard 
-                key={article.id} 
-                article={article} 
-                onClick={handleArticleClick} 
-              />
-            ))}
-        </div>
+        {latestArticles.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {latestArticles.map(article => (
+                <ArticleCard 
+                  key={article.id} 
+                  article={article} 
+                  onClick={handleArticleClick} 
+                />
+              ))}
+          </div>
+        ) : (
+          <div className="text-center py-10 text-gray-400 italic">
+            Belum ada berita terkini tambahan.
+          </div>
+        )}
       </section>
 
       {/* Categories Preview Section - Reimagined for Column */}

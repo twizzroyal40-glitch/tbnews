@@ -6,6 +6,7 @@ import { CategoryPage } from './pages/CategoryPage';
 import { ArticleDetail } from './pages/ArticleDetail';
 import { IndexPage } from './pages/IndexPage';
 import { SearchPage } from './pages/SearchPage';
+import { LatestNewsPage } from './pages/LatestNewsPage';
 import { AdminPage } from './pages/AdminPage';
 import { RedaksiPage } from './pages/RedaksiPage';
 import { AboutPage } from './pages/AboutPage';
@@ -79,6 +80,7 @@ function App() {
           <Route path="article/:id" element={<ArticleDetail />} />
           <Route path="archive" element={<IndexPage />} />
           <Route path="search" element={<SearchPage />} />
+          <Route path="terkini" element={<LatestNewsPage />} />
           <Route path="redaksi" element={<RedaksiPage />} />
           <Route path="tentang" element={<AboutPage />} />
           <Route path="kontak" element={<ContactPage />} />

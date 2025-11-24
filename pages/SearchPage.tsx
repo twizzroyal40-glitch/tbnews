@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { searchArticles } from '../services/geminiService';
 import { Article } from '../types';
 import { ArticleCard } from '../components/ArticleCard';
+import { Pagination } from '../components/Pagination';
 import { Search, Loader2 } from 'lucide-react';
 
 export const SearchPage: React.FC = () => {
@@ -10,6 +11,11 @@ export const SearchPage: React.FC = () => {
   const query = searchParams.get('q') || '';
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 6;
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,6 +30,7 @@ export const SearchPage: React.FC = () => {
       try {
         const results = await searchArticles(query);
         setArticles(results);
+        setCurrentPage(1); // Reset to page 1 on new search
       } catch (e) {
         console.error("Search failed", e);
       } finally {
@@ -40,6 +47,13 @@ export const SearchPage: React.FC = () => {
       navigate(`/article/${id}`, { state: { article } });
     }
   };
+
+  // Calculate Pagination
+  const totalPages = Math.ceil(articles.length / ITEMS_PER_PAGE);
+  const currentArticles = articles.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="min-h-screen">
@@ -70,15 +84,25 @@ export const SearchPage: React.FC = () => {
            <p className="text-gray-500 text-sm mt-2">Coba gunakan kata kunci lain yang lebih umum.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {articles.map((article) => (
-            <ArticleCard 
-              key={article.id} 
-              article={article} 
-              onClick={handleArticleClick}
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {currentArticles.map((article) => (
+              <ArticleCard 
+                key={article.id} 
+                article={article} 
+                onClick={handleArticleClick}
+              />
+            ))}
+          </div>
+
+          {articles.length > ITEMS_PER_PAGE && (
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
             />
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

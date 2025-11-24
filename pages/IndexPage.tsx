@@ -2,12 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getArticlesByMonth } from '../services/geminiService';
 import { Article } from '../types';
+import { Pagination } from '../components/Pagination';
 import { Loader2, Calendar, ChevronRight, Archive, AlertCircle } from 'lucide-react';
 
 export const IndexPage: React.FC = () => {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+
   const navigate = useNavigate();
 
   const loadArchive = async (dateString: string) => {
@@ -19,6 +25,7 @@ export const IndexPage: React.FC = () => {
 
       const results = await getArticlesByMonth(year, month);
       setArticles(results);
+      setCurrentPage(1); // Reset page
     } catch (error) {
       console.error(error);
     } finally {
@@ -33,6 +40,13 @@ export const IndexPage: React.FC = () => {
   const handleFilter = () => {
     loadArchive(selectedMonth);
   };
+
+  // Calculate Pagination
+  const totalPages = Math.ceil(articles.length / ITEMS_PER_PAGE);
+  const currentArticles = articles.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[600px]">
@@ -83,7 +97,7 @@ export const IndexPage: React.FC = () => {
                 <p className="text-gray-400 text-xs mt-2">(Coba Oktober 2023 untuk data contoh)</p>
             </div>
         ) : (
-           articles.map((article, idx) => (
+           currentArticles.map((article, idx) => (
              <div 
                 key={`${article.id}-${idx}`} 
                 onClick={() => navigate(`/article/${article.id}`, { state: { article } })}
@@ -114,9 +128,19 @@ export const IndexPage: React.FC = () => {
         )}
       </div>
       
+      {!loading && articles.length > ITEMS_PER_PAGE && (
+        <div className="p-4 border-t border-gray-100">
+            <Pagination 
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+            />
+        </div>
+      )}
+      
       {!loading && articles.length > 0 && (
         <div className="p-6 border-t border-gray-100 bg-gray-50 text-center">
-          <p className="text-xs text-gray-400 italic">Menampilkan {articles.length} artikel</p>
+          <p className="text-xs text-gray-400 italic">Menampilkan {currentArticles.length} dari {articles.length} artikel</p>
         </div>
       )}
     </div>

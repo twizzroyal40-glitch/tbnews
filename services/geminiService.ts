@@ -107,6 +107,10 @@ export const fetchNewsArticles = async (category: Category): Promise<Article[]> 
   return allArticles.filter(article => article.category === category);
 };
 
+export const getLatestNews = async (): Promise<Article[]> => {
+  return await getAllArticlesFromSupabase();
+};
+
 export const getPopularArticles = async (): Promise<Article[]> => {
   const allArticles = await getAllArticlesFromSupabase();
   // Sort by views descending and take top 5

@@ -12,6 +12,7 @@ import {
   Lock, LogOut, Loader2, AlertCircle, UserPlus, LogIn, Plus,
   LayoutDashboard, FileText, Trash2, Edit, Search, Eye, Images, Copy, Check, X, AlertTriangle, MonitorPlay
 } from 'lucide-react';
+import { Pagination } from '../components/Pagination';
 
 export const AdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -30,6 +31,10 @@ export const AdminPage: React.FC = () => {
   const [articles, setArticles] = useState<Article[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Pagination State for Admin Table
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   
   // --- DELETE CONFIRMATION STATE (ARTICLES) ---
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -149,6 +154,11 @@ export const AdminPage: React.FC = () => {
         fetchAds();
     }
   }, [activeTab]);
+
+  // Reset pagination when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   // --- AUTH HANDLERS ---
 
@@ -438,6 +448,13 @@ export const AdminPage: React.FC = () => {
     a.author.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Calculate Table Pagination
+  const totalPages = Math.ceil(filteredArticles.length / ITEMS_PER_PAGE);
+  const currentTableArticles = filteredArticles.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   // --- LOADING VIEW ---
   if (authLoading) {
     return (
@@ -640,7 +657,7 @@ export const AdminPage: React.FC = () => {
                      />
                   </div>
                   <span className="text-xs text-gray-500">
-                    Menampilkan {filteredArticles.length} dari {articles.length} data
+                    Menampilkan {currentTableArticles.length} dari {filteredArticles.length} data
                   </span>
                </div>
 
@@ -662,7 +679,7 @@ export const AdminPage: React.FC = () => {
                        </tr>
                      </thead>
                      <tbody className="divide-y divide-gray-100">
-                       {filteredArticles.map((article) => (
+                       {currentTableArticles.map((article) => (
                          <tr key={article.id} className="hover:bg-slate-50 transition-colors">
                            <td className="px-6 py-4 max-w-xs">
                              <p className="font-bold text-gray-900 truncate" title={article.title}>{article.title}</p>
@@ -706,6 +723,16 @@ export const AdminPage: React.FC = () => {
                        )}
                      </tbody>
                    </table>
+                 </div>
+               )}
+               
+               {filteredArticles.length > ITEMS_PER_PAGE && (
+                 <div className="bg-gray-50 border-t border-gray-200 pb-4">
+                    <Pagination 
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPage}
+                    />
                  </div>
                )}
             </div>
@@ -988,12 +1015,12 @@ export const AdminPage: React.FC = () => {
 
                  {/* Content with Image Insert & Preview Toggle */}
                  <div>
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
                        <label className="block text-sm font-bold text-gray-700">Isi Berita *</label>
                        
-                       <div className="flex items-center gap-3">
+                       <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                            {/* View Mode Toggle */}
-                           <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+                           <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => setContentViewMode('write')}
@@ -1010,30 +1037,33 @@ export const AdminPage: React.FC = () => {
                               </button>
                            </div>
 
-                           <button
-                             type="button"
-                             onClick={() => {
-                               if (contentViewMode === 'preview') setContentViewMode('write');
-                               setTimeout(() => contentFileInputRef.current?.click(), 0);
-                             }}
-                             disabled={isContentUploading}
-                             className="text-xs flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200 font-semibold"
-                           >
-                             {isContentUploading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
-                             Sisipkan Gambar
-                           </button>
+                           {/* Action Buttons */}
+                           <div className="flex gap-2 flex-1 md:flex-none w-full md:w-auto">
+                             <button
+                               type="button"
+                               onClick={() => {
+                                 if (contentViewMode === 'preview') setContentViewMode('write');
+                                 setTimeout(() => contentFileInputRef.current?.click(), 0);
+                               }}
+                               disabled={isContentUploading}
+                               className="flex-1 md:flex-none justify-center text-xs flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200 font-semibold whitespace-nowrap"
+                             >
+                               {isContentUploading ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Plus size={14} className="mr-1.5" />}
+                               Sisipkan Gambar
+                             </button>
 
-                           <button
-                             type="button"
-                             onClick={() => {
-                               if (contentViewMode === 'preview') setContentViewMode('write');
-                               openGalleryModal();
-                             }}
-                             className="text-xs flex items-center bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-100 transition-colors border border-purple-200 font-semibold"
-                           >
-                             <Images size={14} className="mr-1.5" />
-                             Sisipkan Galeri
-                           </button>
+                             <button
+                               type="button"
+                               onClick={() => {
+                                 if (contentViewMode === 'preview') setContentViewMode('write');
+                                 openGalleryModal();
+                               }}
+                               className="flex-1 md:flex-none justify-center text-xs flex items-center bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-100 transition-colors border border-purple-200 font-semibold whitespace-nowrap"
+                             >
+                               <Images size={14} className="mr-1.5" />
+                               Sisipkan Galeri
+                             </button>
+                           </div>
                        </div>
                        <input type="file" hidden ref={contentFileInputRef} onChange={handleContentImageUpload} accept="image/*" />
                     </div>
