@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
@@ -14,8 +14,50 @@ import { ContactPage } from './pages/ContactPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { Category } from './types';
+import { checkSupabaseConnection } from './services/geminiService';
+import { MaintenancePage } from './pages/MaintenancePage';
+import { Loader2 } from 'lucide-react';
 
 function App() {
+  const [isChecking, setIsChecking] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+
+  const runConnectionCheck = async () => {
+    setIsChecking(true);
+    const connectionStatus = await checkSupabaseConnection();
+    setIsConnected(connectionStatus);
+    setIsChecking(false);
+  };
+
+  useEffect(() => {
+    // Memberi sedikit jeda agar animasi loading terlihat
+    const timer = setTimeout(() => {
+        runConnectionCheck();
+    }, 500); 
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isChecking && !isConnected) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <img 
+          src="https://raw.githubusercontent.com/esport-restasorkot/imagesrc/main/TBNewsSorkot.png" 
+          alt="TB-News Logo" 
+          className="h-24 mb-6"
+        />
+        <div className="flex items-center text-gray-500 font-serif italic">
+            <Loader2 className="w-5 h-5 animate-spin mr-3" />
+            Memeriksa koneksi ke server...
+        </div>
+      </div>
+    );
+  }
+
+  if (!isConnected) {
+    return <MaintenancePage onRetry={runConnectionCheck} isRetrying={isChecking} />;
+  }
+
   return (
     <Router>
       <Routes>

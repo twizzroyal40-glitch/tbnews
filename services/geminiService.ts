@@ -1,33 +1,60 @@
 import { Article, Category, Comment, AdConfig } from "../types";
 import { supabase } from "../utils/supabase";
 
-// --- UTILS FOR DATE PARSING ---
-const monthMap: { [key: string]: number } = {
-  'januari': 0, 'februari': 1, 'maret': 2, 'april': 3, 'mei': 4, 'juni': 5,
-  'juli': 6, 'agustus': 7, 'september': 8, 'oktober': 9, 'november': 10, 'desember': 11
-};
-
-const parseIndonesianDate = (dateStr: string): Date | null => {
-  try {
-    if (dateStr.includes('Baru saja')) return new Date();
-    
-    const parts = dateStr.toLowerCase().split(' ');
-    if (parts.length !== 3) return null;
-
-    const day = parseInt(parts[0], 10);
-    const monthIndex = monthMap[parts[1]];
-    const year = parseInt(parts[2], 10);
-
-    if (isNaN(day) || monthIndex === undefined || isNaN(year)) return null;
-
-    return new Date(year, monthIndex, day);
-  } catch (e) {
-    return null;
+// --- HELPER: ERROR LOGGING ---
+const logServiceError = (context: string, error: any) => {
+  const message = error instanceof Error ? error.message : (error?.message || String(error));
+  const isNetworkError = message.includes('Failed to fetch') || message.includes('Network request failed') || message.includes('NetworkError');
+  
+  if (isNetworkError) {
+    console.warn(
+      `[Mode Offline Aktif] Tidak dapat terhubung ke Supabase untuk '${context}'.\n` +
+      `Alasan umum:\n` +
+      `1. Proyek Supabase sedang dijeda (paused) atau tidak aktif.\n` +
+      `2. Variabel environment SUPABASE_URL/SUPABASE_ANON_KEY salah atau tidak ada.\n` +
+      `3. Masalah konektivitas jaringan (firewall, offline, dll.).\n` +
+      `Aplikasi mungkin tidak menampilkan data dari server.`
+    );
+  } else if (message.toLowerCase().includes("relation") && message.toLowerCase().includes("does not exist")) {
+    console.error(
+        `[Database Error] di '${context}': Tabel yang diperlukan tidak ditemukan. \n` +
+        `Detail: ${message} \n` +
+        `Pastikan skema database Supabase Anda (misalnya, tabel 'articles', 'comments') telah diatur dengan benar.`
+    );
+  } else {
+    console.warn(`[Service Error] di '${context}': ${message}`);
   }
 };
 
+// --- HELPER: CHECK CONNECTION ---
+export const checkSupabaseConnection = async (): Promise<boolean> => {
+  try {
+    // Try a very lightweight query to check connection
+    const { error } = await supabase.from('articles').select('count', { count: 'exact', head: true });
+    // If error is null, connection worked. If error exists, it failed.
+    return !error;
+  } catch (e) {
+    return false;
+  }
+};
+
+// --- HELPER: MAPPER ---
+// Maps Supabase raw object to application Article type
+const mapSupabaseToArticle = (item: any): Article => ({
+    id: item.id?.toString() || Math.random().toString(),
+    title: item.title || 'Tanpa Judul',
+    excerpt: item.excerpt || '',
+    content: item.content || '',
+    category: item.category || Category.HOME,
+    author: item.author || 'Admin',
+    publishedAt: item.published_at ? new Date(item.published_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('id-ID'),
+    imageUrl: item.image_url || item.imageUrl || 'https://via.placeholder.com/800x600?text=No+Image',
+    views: item.views || 0,
+    commentCount: item.comment_count || 0,
+    shareCount: item.share_count || 0
+});
+
 // --- HELPER: INCREMENT COUNTER ---
-// Helper to atomically (sort of) increment a field in Supabase
 const incrementField = async (id: string, field: 'views' | 'comment_count' | 'share_count'): Promise<number | null> => {
   try {
     // 1. Get current value
@@ -52,14 +79,15 @@ const incrementField = async (id: string, field: 'views' | 'comment_count' | 'sh
 
     return newValue;
   } catch (error) {
-    console.error(`Failed to increment ${field}:`, error);
+    // Silent fail for counters is acceptable
+    logServiceError(`incrementField(${id}, ${field})`, error);
     return null;
   }
 };
 
-// --- SERVICES WITH SUPABASE ---
+// --- SERVICES WITH SUPABASE (SERVER-SIDE FILTERING) ---
 
-// Helper to fetch all articles once and cache in memory (for simplicity in this specific app structure)
+// Fetch ALL articles (Admin use primarily)
 export const getAllArticlesFromSupabase = async (): Promise<Article[]> => {
   try {
     const { data, error } = await supabase
@@ -67,78 +95,116 @@ export const getAllArticlesFromSupabase = async (): Promise<Article[]> => {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn("⚠️ Supabase Error (Articles):", error.message);
-      return [];
-    }
-
-    if (!data || data.length === 0) {
-      return []; 
-    }
-
-    const supabaseArticles: Article[] = data.map((item: any) => ({
-         id: item.id?.toString(),
-         title: item.title || '',
-         excerpt: item.excerpt || '',
-         content: item.content || '',
-         category: item.category || Category.HOME,
-         author: item.author || 'Admin',
-         publishedAt: item.published_at || item.publishedAt || new Date().toLocaleDateString('id-ID'),
-         imageUrl: item.image_url || item.imageUrl || '',
-         views: item.views || 0,
-         commentCount: item.comment_count || item.commentCount || 0,
-         shareCount: item.share_count || item.shareCount || 0
-    }));
-
-    return supabaseArticles;
+    if (error) throw error;
+    return (data || []).map(mapSupabaseToArticle);
   } catch (error: any) {
-    console.error("Error fetching articles from Supabase:", error.message || error);
-    return [];
+    logServiceError("getAllArticlesFromSupabase", error);
+    return []; // Return empty array on failure
   }
 };
 
+// Optimized: Fetch by Category
 export const fetchNewsArticles = async (category: Category): Promise<Article[]> => {
-  const allArticles = await getAllArticlesFromSupabase();
+  try {
+      let query = supabase
+        .from('articles')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  if (category === Category.HOME) {
-    return allArticles.slice(0, 6);
+      if (category !== Category.HOME) {
+          query = query.eq('category', category);
+      } else {
+          query = query.limit(10); // Limit homepage fetch for speed
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      
+      return (data || []).map(mapSupabaseToArticle);
+  } catch (error: any) {
+      logServiceError(`fetchNewsArticles(${category})`, error);
+      return []; // Return empty array
   }
-
-  return allArticles.filter(article => article.category === category);
 };
 
+// Optimized: Get Latest News (Limit 20)
 export const getLatestNews = async (): Promise<Article[]> => {
-  return await getAllArticlesFromSupabase();
+  try {
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+
+      return (data || []).map(mapSupabaseToArticle);
+  } catch (error: any) {
+      logServiceError("getLatestNews", error);
+      return []; // Return empty array
+  }
 };
 
+// Optimized: Get Popular (Order by views DB side)
 export const getPopularArticles = async (): Promise<Article[]> => {
-  const allArticles = await getAllArticlesFromSupabase();
-  // Sort by views descending and take top 5
-  return allArticles
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 5);
+  try {
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*')
+        .order('views', { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+
+      return (data || []).map(mapSupabaseToArticle);
+  } catch (error: any) {
+      logServiceError("getPopularArticles", error);
+      return []; // Return empty array
+  }
 };
 
+// Optimized: Search DB side using ILIKE
 export const searchArticles = async (queryStr: string): Promise<Article[]> => {
-  const allArticles = await getAllArticlesFromSupabase();
-  const lowerQuery = queryStr.toLowerCase();
-  
-  return allArticles.filter(article => 
-    article.title.toLowerCase().includes(lowerQuery) || 
-    article.excerpt.toLowerCase().includes(lowerQuery) ||
-    article.content.toLowerCase().includes(lowerQuery)
-  );
+  try {
+      if (!queryStr) return [];
+      
+      const pattern = `%${queryStr}%`;
+      
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*')
+        .or(`title.ilike.${pattern},excerpt.ilike.${pattern},content.ilike.${pattern}`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []).map(mapSupabaseToArticle);
+  } catch (error: any) {
+      logServiceError(`searchArticles(${queryStr})`, error);
+      return []; // Return empty array
+  }
 };
 
+// Get articles by month (Optimized to query DB directly)
 export const getArticlesByMonth = async (year: number, month: number): Promise<Article[]> => {
-  const allArticles = await getAllArticlesFromSupabase();
+  try {
+      const startDate = new Date(year, month, 1).toISOString();
+      const endDate = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+      
+      const { data, error } = await supabase
+          .from('articles')
+          .select('*')
+          .gte('published_at', startDate)
+          .lte('published_at', endDate)
+          .order('published_at', { ascending: false });
 
-  return allArticles.filter(article => {
-    const date = parseIndonesianDate(article.publishedAt);
-    if (!date) return false;
+      if (error) throw error;
 
-    return date.getFullYear() === year && date.getMonth() === month;
-  });
+      return (data || []).map(mapSupabaseToArticle);
+  } catch (error: any) {
+      logServiceError(`getArticlesByMonth(${year}-${month})`, error);
+      return []; // Return empty array
+  }
 };
 
 // --- COUNTER SERVICES (VIEWS & SHARES) ---
@@ -199,8 +265,8 @@ export const getGalleryImages = async (): Promise<{name: string, url: string}[]>
       };
     });
   } catch (error: any) {
-    console.error("Error fetching gallery images:", error.message);
-    return [];
+    logServiceError("getGalleryImages", error);
+    return []; // Return empty array
   }
 };
 
@@ -222,7 +288,8 @@ export const deleteImage = async (fileName: string): Promise<void> => {
 export const createArticle = async (
   data: Omit<Article, 'id' | 'views' | 'commentCount' | 'shareCount' | 'publishedAt'>
 ): Promise<void> => {
-  const publishedAt = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  // Use ISO 8601 format for database compatibility and proper filtering
+  const publishedAt = new Date().toISOString();
   
   const { error } = await supabase.from('articles').insert([
     {
@@ -294,12 +361,9 @@ export const getCommentsByArticleId = async (articleId: string): Promise<Comment
       .eq('article_id', articleId)
       .order('created_at', { ascending: false });
 
-    if (error) {
-        console.error("Supabase Error fetching comments:", error.message);
-        throw error;
-    }
+    if (error) throw error;
 
-    return data.map((item: any) => ({
+    return (data || []).map((item: any) => ({
       id: item.id.toString(),
       articleId: item.article_id.toString(),
       name: item.name,
@@ -310,8 +374,8 @@ export const getCommentsByArticleId = async (articleId: string): Promise<Comment
       })
     }));
   } catch (error: any) {
-    console.error("Error fetching comments:", error.message || error);
-    return [];
+    logServiceError("getCommentsByArticleId", error);
+    return []; // Return empty array
   }
 };
 
@@ -331,10 +395,7 @@ export const createComment = async (articleId: string, name: string, email: stri
        .select()
        .single();
 
-     if (error) {
-        console.error("Supabase Error creating comment:", error.message);
-        throw error;
-     }
+     if (error) throw error;
 
      // 2. Increment comment count using the generic helper
      await incrementField(articleId, 'comment_count');
@@ -348,8 +409,8 @@ export const createComment = async (articleId: string, name: string, email: stri
         date: "Baru saja"
      };
   } catch (error: any) {
-    console.error("Error creating comment:", error.message || error);
-    return null;
+    logServiceError("createComment", error);
+    throw error;
   }
 };
 
@@ -382,24 +443,20 @@ const DEFAULT_ADS: AdConfig[] = [
 export const getAds = async (): Promise<AdConfig[]> => {
   let fetchedAds: AdConfig[] = [];
 
-  // 1. Try Fetch from Supabase
-  try {
-    const { data, error } = await supabase
-      .from('ads')
-      .select('*');
-
-    if (!error && data && data.length > 0) {
-      fetchedAds = data.map((item: any) => ({
-        id: item.id,
-        position: item.position,
-        title: item.title,
-        imageUrl: item.image_url,
-        linkUrl: item.link_url,
-        isActive: item.is_active
-      }));
-    }
-  } catch (error: any) {
-    console.warn("Supabase fetch failed (ads):", error.message);
+  // 1. Try Fetch from Supabase (without throwing)
+  const { data, error } = await supabase.from('ads').select('*');
+  
+  if (error) {
+    logServiceError("getAds", error);
+  } else if (data && data.length > 0) {
+    fetchedAds = data.map((item: any) => ({
+      id: item.id,
+      position: item.position,
+      title: item.title || `Iklan ${item.position}`,
+      imageUrl: item.image_url || '',
+      linkUrl: item.link_url || '#',
+      isActive: item.is_active || false,
+    }));
   }
 
   // 2. Fallback: If Supabase empty/failed, try LocalStorage
@@ -410,25 +467,20 @@ export const getAds = async (): Promise<AdConfig[]> => {
         fetchedAds = JSON.parse(local);
       }
     } catch (e) {
-      console.error("Local storage parse failed", e);
+      console.warn("Local storage parse failed", e);
     }
   }
 
-  // 3. MERGE LOGIC: Combine fetched data with DEFAULT_ADS
-  // This ensures that if we add a new slot (like sidebar_middle) to the code,
-  // it appears in the app even if it doesn't exist in the DB/LocalStorage yet.
+  // 3. MERGE LOGIC to ensure all default ad slots are present
   return DEFAULT_ADS.map(defaultAd => {
-    // Find if we have saved data for this position
     const savedAd = fetchedAds.find(ad => ad.position === defaultAd.position);
-    
-    // If found, use the saved data (keeping ID, active state, image). 
-    // If not found, use the default "placeholder" config.
+    // Merge saved data into the default structure to guarantee consistency
     return savedAd ? { ...defaultAd, ...savedAd } : defaultAd;
   });
 };
 
 export const saveAd = async (ad: AdConfig): Promise<void> => {
-  // 1. Always save to LocalStorage as backup/cache
+  // 1. Always save to LocalStorage as backup
   try {
       const currentAds = await getAds();
       const updatedAds = currentAds.map(a => a.position === ad.position ? ad : a);
@@ -439,7 +491,6 @@ export const saveAd = async (ad: AdConfig): Promise<void> => {
 
   // 2. Try Supabase
   try {
-    // Check if ad exists for position
     const { data: existing, error: fetchError } = await supabase
       .from('ads')
       .select('id')
@@ -457,19 +508,19 @@ export const saveAd = async (ad: AdConfig): Promise<void> => {
     };
 
     if (existing) {
+      // Update
       const { error } = await supabase
         .from('ads')
         .update(payload)
         .eq('id', existing.id);
       if (error) throw error;
     } else {
-      const { error } = await supabase
-        .from('ads')
-        .insert([payload]);
+      // Insert
+      const { error } = await supabase.from('ads').insert(payload);
       if (error) throw error;
     }
   } catch (error: any) {
-    // Graceful degradation: If DB fails, we already saved to localStorage, so we just warn
-    console.warn("Supabase save failed (using local only):", error.message);
+    logServiceError("saveAd", error);
+    throw new Error("Gagal menyimpan konfigurasi iklan ke database.");
   }
 };

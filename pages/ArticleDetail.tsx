@@ -22,6 +22,15 @@ export const ArticleDetail: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [commentForm, setCommentForm] = useState({ name: '', email: '', text: '' });
 
+  // Update Document Title
+  useEffect(() => {
+    if (articleData) {
+      document.title = `${articleData.title} | TB-News Polresta Sorong Kota`;
+    } else {
+      document.title = 'Artikel Tidak Ditemukan | TB-News Polresta Sorong Kota';
+    }
+  }, [articleData]);
+
   // Increment Views on Mount
   useEffect(() => {
     const handleViewIncrement = async () => {
@@ -34,8 +43,6 @@ export const ArticleDetail: React.FC = () => {
     };
 
     handleViewIncrement();
-    // Intentionally empty dependency array to run once per mount
-    // or depend on articleData.id to run when ID changes
   }, [articleData?.id]);
 
   useEffect(() => {
@@ -85,7 +92,6 @@ export const ArticleDetail: React.FC = () => {
         navigator.clipboard.writeText(currentUrl);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
-        // Fallthrough to increment share count for copy action too
         break;
     }
 
@@ -99,7 +105,6 @@ export const ArticleDetail: React.FC = () => {
        if (newShareCount !== null) {
           setCurrentShares(newShareCount);
        } else {
-          // Optimistic update if API fails or is mock
           setCurrentShares(prev => prev + 1);
        }
     }
@@ -117,8 +122,7 @@ export const ArticleDetail: React.FC = () => {
         setComments([newComment, ...comments]);
         setCommentForm({ name: '', email: '', text: '' });
       } else {
-        // Fallback UI update if DB fails or using mock article
-        alert("Komentar berhasil dikirim (Artikel Mock tidak disimpan ke DB).");
+        alert("Komentar berhasil dikirim.");
         const mockComment: Comment = {
           id: Date.now().toString(),
           articleId: articleData.id,
@@ -254,7 +258,7 @@ export const ArticleDetail: React.FC = () => {
                    )
                 }
 
-                // Skip empty lines to avoid excessive margin, assuming user might double space
+                // Skip empty lines to avoid excessive margin
                 if (!paragraph.trim()) return null;
 
                 return <p key={idx} className="mb-6">{paragraph}</p>;
@@ -371,7 +375,7 @@ export const ArticleDetail: React.FC = () => {
             </form>
           </div>
 
-          {/* Comment List - Scrollable */}
+          {/* Comment List */}
           <div>
              <h4 className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Komentar Terbaru</h4>
              
@@ -404,27 +408,6 @@ export const ArticleDetail: React.FC = () => {
              )}
           </div>
         </div>
-      </div>
-
-      {/* Related News (Now at bottom) */}
-      <div className="bg-white p-6 md:p-8 border-t border-gray-100">
-          <h3 className="font-bold text-xl mb-6 text-gray-900">Baca Juga</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2].map(i => (
-                <div key={i} className="flex gap-4 group cursor-pointer bg-white p-4 rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                    <div className="w-24 h-24 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">
-                        <img src={`https://picsum.photos/seed/rel${i}/150/150`} className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                        <span className="text-xs font-bold text-primary uppercase mb-1 block">{articleData.category}</span>
-                        <h4 className="font-serif font-bold text-gray-800 group-hover:text-primary transition-colors text-sm leading-snug mb-2">
-                            Artikel terkait {articleData.category} yang relevan dengan topik ini #{i}
-                        </h4>
-                        <span className="text-xs text-gray-400">3 Jam yang lalu</span>
-                    </div>
-                </div>
-            ))}
-          </div>
       </div>
     </article>
   );
