@@ -1,164 +1,5 @@
-import { Article, Category } from "../types";
-import { db } from "./firebase";
-import { collection, getDocs, addDoc, query, orderBy, Timestamp } from "firebase/firestore";
-
-// --- MOCK DATA (Fallback for empty DB) ---
-const getPlaceholderImage = (seed: string) => `https://picsum.photos/seed/${seed}/800/600`;
-
-const INITIAL_DATA: Article[] = [
-  // --- TERKINI / HOME / HEADLINE ---
-  {
-    id: 'headline-1',
-    title: "Kapolresta Sorong Kota Pimpin Apel Gelar Pasukan Operasi Mantap Praja",
-    excerpt: "Polresta Sorong Kota menggelar apel pasukan untuk memastikan kesiapan personel dalam mengamankan agenda Pilkada serentak tahun ini.",
-    content: `SORONG KOTA - Kepala Kepolisian Resor Kota (Kapolresta) Sorong Kota memimpin langsung Apel Gelar Pasukan dalam rangka Operasi Mantap Praja di lapangan Mapolresta Sorong Kota pagi ini. Kegiatan ini bertujuan untuk mengecek kesiapan personel, sarana, dan prasarana sebelum diterjunkan ke lapangan.
-    
-    [IMAGE:https://picsum.photos/seed/apel-detail/800/400]
-
-    Dalam amanatnya, Kapolresta menekankan pentingnya netralitas anggota Polri dalam mengawal pesta demokrasi. "Kita harus menjamin keamanan dan ketertiban masyarakat agar seluruh tahapan pemilu dapat berjalan dengan lancar, damai, dan kondusif," tegasnya di hadapan ratusan personel gabungan.
-    
-    Selain personel Polri, apel ini juga diikuti oleh unsur TNI, Satpol PP, dan Dinas Perhubungan. Sinergitas antar instansi diharapkan mampu meminimalisir potensi gangguan keamanan di wilayah hukum Polresta Sorong Kota. Operasi ini akan berlangsung selama tahapan inti pemilu hingga pelantikan pejabat terpilih.`,
-    category: Category.KEGIATAN,
-    author: "Bripka Agus Setiawan",
-    publishedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-    imageUrl: getPlaceholderImage('apel-pagi'),
-    views: 1540,
-    commentCount: 45,
-    shareCount: 120
-  },
-  {
-    id: 'krim-1',
-    title: "Tim Resmob Mangewang Bekuk Pelaku Curanmor di Km 10",
-    excerpt: "Satuan Reserse Kriminal (Sat Reskrim) Polresta Sorong Kota berhasil mengamankan pelaku pencurian kendaraan bermotor yang meresahkan warga.",
-    content: `TIM RESMOB - Gerak cepat Tim Resmob Mangewang Polresta Sorong Kota membuahkan hasil. Seorang pria berinisial JK (24) yang diduga kuat sebagai spesialis pencurian kendaraan bermotor (Curanmor) berhasil dibekuk di kawasan Kilometer 10 Masuk, Kota Sorong, dini hari tadi.
-    
-    Penangkapan bermula dari laporan warga yang kehilangan sepeda motor matic saat diparkir di halaman rumah. Berdasarkan hasil penyelidikan dan rekaman CCTV di sekitar TKP, tim berhasil mengidentifikasi pelaku. Saat ditangkap, pelaku tidak melakukan perlawanan berarti.
-    
-    "Kami mengamankan barang bukti berupa satu unit sepeda motor Honda Beat warna hitam dan kunci T yang digunakan pelaku," ujar Kasat Reskrim. Saat ini pelaku telah diamankan di Mapolresta Sorong Kota untuk pemeriksaan lebih lanjut dan pengembangan kasus guna mengungkap jaringan penadah barang curian tersebut.`,
-    category: Category.KRIMINAL,
-    author: "Humas Polresta",
-    publishedAt: "14 Oktober 2023",
-    imageUrl: getPlaceholderImage('resmob'),
-    views: 3200,
-    commentCount: 89,
-    shareCount: 210
-  },
-  
-  // --- KRIMINAL ---
-  {
-    id: 'krim-2',
-    title: "Polresta Sorong Kota Musnahkan Ribuan Liter Miras Cap Tikus",
-    excerpt: "Pemusnahan barang bukti minuman keras lokal jenis Cap Tikus hasil razia cipta kondisi selama sebulan terakhir.",
-    content: `Pemusnahan barang bukti miras ini dilakukan di halaman belakang Mapolresta, disaksikan oleh perwakilan Kejaksaan Negeri dan tokoh masyarakat. Ribuan liter miras ini merupakan hasil sitaan dari berbagai warung dan kapal penumpang yang mencoba menyelundupkan barang haram tersebut ke Kota Sorong. Kapolresta menegaskan tidak ada toleransi bagi peredaran miras ilegal yang sering menjadi pemicu tindak kriminalitas.`,
-    category: Category.KRIMINAL,
-    author: "Tim Redaksi",
-    publishedAt: "12 Oktober 2023",
-    imageUrl: getPlaceholderImage('miras'),
-    views: 980,
-    commentCount: 23,
-    shareCount: 45
-  },
-  {
-    id: 'krim-3',
-    title: "Dugaan Penganiayaan di Sorong Timur, Polisi Periksa 3 Saksi",
-    excerpt: "Penyidik Polsek Sorong Timur tengah mendalami kasus dugaan penganiayaan yang terjadi di salah satu komplek perumahan.",
-    content: `Unit Reskrim Polsek Sorong Timur bergerak cepat menindaklanjuti laporan penganiayaan. Hingga kini, tiga orang saksi telah diperiksa untuk dimintai keterangan. Korban saat ini masih menjalani perawatan di RSUD Sele Be Solu. Polisi menghimbau keluarga korban untuk menyerahkan penanganan kasus ini sepenuhnya kepada aparat penegak hukum dan tidak main hakim sendiri.`,
-    category: Category.KRIMINAL,
-    author: "Humas Polsek Sortim",
-    publishedAt: "10 Oktober 2023",
-    imageUrl: getPlaceholderImage('saksi'),
-    views: 1200,
-    commentCount: 12,
-    shareCount: 5
-  },
-
-  // --- KEAMANAN ---
-  {
-    id: 'aman-1',
-    title: "Patroli Dialogis Sat Samapta Sasar Wilayah Rawan Malam Hari",
-    excerpt: "Meningkatkan rasa aman, Sat Samapta rutin gelar patroli dialogis menyapa warga di pos-pos kamling.",
-    content: `Untuk mencegah gangguan Kamtibmas di malam hari, Satuan Samapta Polresta Sorong Kota mengintensifkan patroli dialogis. Rute patroli menyasar titik-titik yang dianggap rawan serta pemukiman padat penduduk. Dalam kesempatan tersebut, petugas menyempatkan diri berdialog dengan warga yang sedang berjaga di Pos Kamling, memberikan himbauan agar segera melapor ke layanan 110 jika menemukan hal mencurigakan.`,
-    category: Category.KEAMANAN,
-    author: "Bripda Putri",
-    publishedAt: "13 Oktober 2023",
-    imageUrl: getPlaceholderImage('patroli'),
-    views: 850,
-    commentCount: 15,
-    shareCount: 30
-  },
-  {
-    id: 'aman-2',
-    title: "Sat Lantas Gelar Sosialisasi Tertib Berlalu Lintas di Sekolah",
-    excerpt: "Menanamkan budaya tertib lalu lintas sejak dini kepada para pelajar SMA di Kota Sorong.",
-    content: `Satuan Lalu Lintas (Sat Lantas) Polresta Sorong Kota menyambangi SMA Negeri 3 Kota Sorong dalam program 'Police Goes to School'. Kasat Lantas memberikan materi tentang pentingnya keselamatan berkendara, penggunaan helm SNI, dan larangan penggunaan knalpot brong yang mengganggu ketertiban umum. Para siswa tampak antusias mengikuti sesi tanya jawab.`,
-    category: Category.KEAMANAN,
-    author: "Humas Lantas",
-    publishedAt: "11 Oktober 2023",
-    imageUrl: getPlaceholderImage('lantas'),
-    views: 1100,
-    commentCount: 40,
-    shareCount: 60
-  },
-
-  // --- KEGIATAN ---
-  {
-    id: 'giat-1',
-    title: "Jumat Curhat: Kapolresta Dengar Langsung Keluhan Warga Rufei",
-    excerpt: "Program Jumat Curhat terus digulirkan untuk menyerap aspirasi dan keluhan masyarakat secara langsung.",
-    content: `Bertempat di Balai Kelurahan Rufei, Kapolresta Sorong Kota didampingi PJU menggelar kegiatan Jumat Curhat. Warga menyampaikan berbagai keluhan mulai dari masalah kamtibmas, peredaran miras, hingga kenakalan remaja. Kapolresta berjanji akan menindaklanjuti masukan warga dengan meningkatkan frekuensi patroli di wilayah tersebut.`,
-    category: Category.KEGIATAN,
-    author: "Humas Polresta",
-    publishedAt: "13 Oktober 2023",
-    imageUrl: getPlaceholderImage('jumat-curhat'),
-    views: 2100,
-    commentCount: 56,
-    shareCount: 150
-  },
-  {
-    id: 'giat-2',
-    title: "Bakti Kesehatan Pengobatan Gratis Polri Presisi",
-    excerpt: "Polresta Sorong Kota mengadakan pemeriksaan kesehatan gratis bagi masyarakat kurang mampu.",
-    content: `Seksi Dokkes Polresta Sorong Kota menggelar bakti kesehatan berupa pengobatan umum dan pemberian vitamin gratis kepada warga pesisir. Kegiatan ini merupakan wujud kepedulian Polri terhadap kesehatan masyarakat. Ratusan warga antusias memeriksakan kesehatan mereka, mulai dari cek tensi, gula darah, hingga konsultasi dokter umum.`,
-    category: Category.KEGIATAN,
-    author: "dr. Iptu Sarah",
-    publishedAt: "09 Oktober 2023",
-    imageUrl: getPlaceholderImage('kesehatan'),
-    views: 1500,
-    commentCount: 34,
-    shareCount: 90
-  },
-
-  // --- INSPIRASI ---
-  {
-    id: 'insp-1',
-    title: "Bripka Asep: Polisi Bhabinkamtibmas yang Jadi Guru Mengaji",
-    excerpt: "Kisah inspiratif Bhabinkamtibmas yang meluangkan waktu di luar dinas untuk mengajar mengaji anak-anak komplek.",
-    content: `Di tengah kesibukannya menjaga keamanan desa binaan, Bripka Asep, anggota Bhabinkamtibmas Polsek Sorong Barat, rutin meluangkan waktu sore harinya untuk mengajar mengaji di TPQ Al-Ikhlas. Dedikasinya ini mendapat apresiasi luas dari masyarakat setempat. Ia percaya bahwa membangun akhlak generasi muda adalah bagian dari menjaga kamtibmas jangka panjang.`,
-    category: Category.INSPIRASI,
-    author: "Tim Feature",
-    publishedAt: "05 Oktober 2023",
-    imageUrl: getPlaceholderImage('ngaji'),
-    views: 5400,
-    commentCount: 120,
-    shareCount: 500
-  },
-
-  // --- PRESS RELEASE ---
-  {
-    id: 'press-1',
-    title: "PRESS RELEASE: Pengungkapan Kasus Narkotika Jenis Ganja 1 Kg",
-    excerpt: "Konferensi pers terkait keberhasilan Sat Narkoba menggagalkan peredaran ganja kering siap edar.",
-    content: `Polresta Sorong Kota menggelar konferensi pers terkait pengungkapan kasus penyalahgunaan narkotika. Barang bukti berupa ganja kering seberat 1 Kg berhasil diamankan dari tangan tersangka berinisial R di pelabuhan laut. Modus pelaku adalah menyamarkan barang haram tersebut di dalam kemasan makanan ringan. Pelaku dijerat dengan UU Narkotika dengan ancaman hukuman maksimal 20 tahun penjara.`,
-    category: Category.PRESS_RELEASE,
-    author: "Humas Polresta",
-    publishedAt: "14 Oktober 2023",
-    imageUrl: getPlaceholderImage('press-narkoba'),
-    views: 2200,
-    commentCount: 10,
-    shareCount: 25
-  }
-];
-
+import { Article, Category, Comment } from "../types";
+import { supabase } from "../utils/supabase";
 
 // --- UTILS FOR DATE PARSING ---
 const monthMap: { [key: string]: number } = {
@@ -185,93 +26,97 @@ const parseIndonesianDate = (dateStr: string): Date | null => {
   }
 };
 
-// --- SERVICES WITH FIREBASE ---
+// --- HELPER: INCREMENT COUNTER ---
+// Helper to atomically (sort of) increment a field in Supabase
+const incrementField = async (id: string, field: 'views' | 'comment_count' | 'share_count'): Promise<number | null> => {
+  try {
+    // 1. Get current value
+    const { data: currentData, error: fetchError } = await supabase
+      .from('articles')
+      .select(field)
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const currentValue = Number(currentData[field]) || 0;
+    const newValue = currentValue + 1;
+
+    // 2. Update with new value
+    const { error: updateError } = await supabase
+      .from('articles')
+      .update({ [field]: newValue })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    return newValue;
+  } catch (error) {
+    console.error(`Failed to increment ${field}:`, error);
+    return null;
+  }
+};
+
+// --- SERVICES WITH SUPABASE ---
 
 // Helper to fetch all articles once and cache in memory (for simplicity in this specific app structure)
-// In a larger app, we would paginate directly from Firestore.
-const getAllArticlesFromFirestore = async (): Promise<Article[]> => {
+export const getAllArticlesFromSupabase = async (): Promise<Article[]> => {
   try {
-    const articlesRef = collection(db, 'articles');
-    // Order by created timestamp desc
-    const q = query(articlesRef, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
+    const { data, error } = await supabase
+      .from('articles')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    if (snapshot.empty) {
-      return INITIAL_DATA; // Fallback so the app isn't empty initially
+    if (error) {
+      console.warn("⚠️ Supabase Error (Articles):", error.message);
+      return [];
     }
 
-    const firestoreArticles = snapshot.docs.map(doc => {
-       const data = doc.data();
-       return { 
-         id: doc.id, 
-         ...data,
-         // Ensure we match the Article interface
-         title: data.title || '',
-         excerpt: data.excerpt || '',
-         content: data.content || '',
-         category: data.category || Category.HOME,
-         author: data.author || 'Admin',
-         publishedAt: data.publishedAt || 'Baru saja',
-         imageUrl: data.imageUrl || '',
-         views: data.views || 0,
-         commentCount: data.commentCount || 0,
-         shareCount: data.shareCount || 0
-       } as Article;
-    });
-
-    // Combine with INITIAL_DATA for demo purposes if needed, or just return firestoreArticles.
-    // To keep the 'full' feel, let's append INITIAL_DATA at the end if the DB is small (< 5 items)
-    if (firestoreArticles.length < 5) {
-        return [...firestoreArticles, ...INITIAL_DATA];
+    if (!data || data.length === 0) {
+      return []; 
     }
 
-    return firestoreArticles;
+    const supabaseArticles: Article[] = data.map((item: any) => ({
+         id: item.id?.toString(),
+         title: item.title || '',
+         excerpt: item.excerpt || '',
+         content: item.content || '',
+         category: item.category || Category.HOME,
+         author: item.author || 'Admin',
+         publishedAt: item.published_at || item.publishedAt || new Date().toLocaleDateString('id-ID'),
+         imageUrl: item.image_url || item.imageUrl || '',
+         views: item.views || 0,
+         commentCount: item.comment_count || item.commentCount || 0,
+         shareCount: item.share_count || item.shareCount || 0
+    }));
+
+    return supabaseArticles;
   } catch (error: any) {
-    // Handle Permission Denied specifically
-    if (error.code === 'permission-denied') {
-        console.warn("⚠️ Firestore Permission Denied: Unable to fetch articles. Using offline mock data.\nTo fix this, update your Firestore Security Rules in the Firebase Console to allow public read access:\n\nmatch /articles/{document=**} {\n  allow read: if true;\n}");
-    } else {
-        console.error("Error fetching articles from Firestore:", error);
-    }
-    // Return mock data so the app remains usable
-    return INITIAL_DATA;
+    console.error("Error fetching articles from Supabase:", error.message || error);
+    return [];
   }
 };
 
 export const fetchNewsArticles = async (category: Category): Promise<Article[]> => {
-  // Add artificial delay for UX smoothness if desired, or remove
-  // await new Promise(resolve => setTimeout(resolve, 300));
-  
-  const allArticles = await getAllArticlesFromFirestore();
+  const allArticles = await getAllArticlesFromSupabase();
 
   if (category === Category.HOME) {
     return allArticles.slice(0, 6);
   }
 
-  const filtered = allArticles.filter(article => article.category === category);
-  
-  if (filtered.length < 2) {
-     const fillers = Array.from({ length: 3 }).map((_, i) => ({
-        id: `filler-${category}-${i}`,
-        title: `[Contoh] Berita ${category} #${i+1}`,
-        excerpt: `Berita ini muncul karena belum ada cukup data untuk kategori ${category}.`,
-        content: `Lorem ipsum content...`,
-        category: category,
-        author: "Admin System",
-        publishedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-        imageUrl: getPlaceholderImage(`filler-${category}-${i}`),
-        views: 0,
-        commentCount: 0,
-        shareCount: 0
-     }));
-     return [...filtered, ...fillers];
-  }
+  return allArticles.filter(article => article.category === category);
+};
 
-  return filtered;
+export const getPopularArticles = async (): Promise<Article[]> => {
+  const allArticles = await getAllArticlesFromSupabase();
+  // Sort by views descending and take top 5
+  return allArticles
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 5);
 };
 
 export const searchArticles = async (queryStr: string): Promise<Article[]> => {
-  const allArticles = await getAllArticlesFromFirestore();
+  const allArticles = await getAllArticlesFromSupabase();
   const lowerQuery = queryStr.toLowerCase();
   
   return allArticles.filter(article => 
@@ -282,7 +127,7 @@ export const searchArticles = async (queryStr: string): Promise<Article[]> => {
 };
 
 export const getArticlesByMonth = async (year: number, month: number): Promise<Article[]> => {
-  const allArticles = await getAllArticlesFromFirestore();
+  const allArticles = await getAllArticlesFromSupabase();
 
   return allArticles.filter(article => {
     const date = parseIndonesianDate(article.publishedAt);
@@ -292,17 +137,214 @@ export const getArticlesByMonth = async (year: number, month: number): Promise<A
   });
 };
 
+// --- COUNTER SERVICES (VIEWS & SHARES) ---
+
+export const incrementArticleView = async (id: string): Promise<number | null> => {
+  return await incrementField(id, 'views');
+};
+
+export const incrementArticleShare = async (id: string): Promise<number | null> => {
+  return await incrementField(id, 'share_count');
+};
+
+// --- IMAGE UPLOAD SERVICE ---
+export const uploadArticleImage = async (file: File): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from('news-images')
+      .upload(filePath, file);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('news-images')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  } catch (error: any) {
+    console.error("Error uploading image:", error.message || error);
+    throw error;
+  }
+};
+
+export const getGalleryImages = async (): Promise<{name: string, url: string}[]> => {
+  try {
+    const { data, error } = await supabase.storage
+      .from('news-images')
+      .list('', {
+        limit: 100,
+        offset: 0,
+        sortBy: { column: 'created_at', order: 'desc' },
+      });
+
+    if (error) throw error;
+
+    return data.map(file => {
+      const { data: { publicUrl } } = supabase.storage
+        .from('news-images')
+        .getPublicUrl(file.name);
+      return {
+        name: file.name,
+        url: publicUrl
+      };
+    });
+  } catch (error: any) {
+    console.error("Error fetching gallery images:", error.message);
+    return [];
+  }
+};
+
+export const deleteImage = async (fileName: string): Promise<void> => {
+  try {
+    const { error } = await supabase.storage
+      .from('news-images')
+      .remove([fileName]);
+
+    if (error) throw error;
+  } catch (error: any) {
+    console.error("Error deleting image:", error.message);
+    throw error;
+  }
+};
+
+// --- CRUD ARTICLE SERVICE ---
+
 export const createArticle = async (
   data: Omit<Article, 'id' | 'views' | 'commentCount' | 'shareCount' | 'publishedAt'>
 ): Promise<void> => {
   const publishedAt = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   
-  await addDoc(collection(db, 'articles'), {
-    ...data,
-    publishedAt,
-    views: 0,
-    commentCount: 0,
-    shareCount: 0,
-    createdAt: Timestamp.now() // For sorting
-  });
+  const { error } = await supabase.from('articles').insert([
+    {
+      title: data.title,
+      excerpt: data.excerpt,
+      content: data.content,
+      category: data.category,
+      author: data.author,
+      image_url: data.imageUrl, 
+      published_at: publishedAt,
+      views: 0,
+      comment_count: 0,
+      share_count: 0
+    }
+  ]);
+
+  if (error) {
+    console.error("Error creating article:", error.message);
+    throw new Error(error.message);
+  }
+};
+
+export const updateArticle = async (
+  id: string,
+  data: Partial<Omit<Article, 'id' | 'views' | 'commentCount' | 'shareCount' | 'publishedAt'>>
+): Promise<void> => {
+  const updatePayload: any = {
+    title: data.title,
+    excerpt: data.excerpt,
+    content: data.content,
+    category: data.category,
+    author: data.author,
+  };
+
+  if (data.imageUrl) {
+    updatePayload.image_url = data.imageUrl;
+  }
+
+  const { error } = await supabase
+    .from('articles')
+    .update(updatePayload)
+    .eq('id', id);
+
+  if (error) {
+    console.error("Error updating article:", error.message);
+    throw new Error(error.message);
+  }
+};
+
+export const deleteArticle = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('articles')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error("Error deleting article:", error.message);
+    throw new Error(error.message);
+  }
+};
+
+// --- COMMENTS SERVICES ---
+
+export const getCommentsByArticleId = async (articleId: string): Promise<Comment[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('article_id', articleId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("Supabase Error fetching comments:", error.message);
+        throw error;
+    }
+
+    return data.map((item: any) => ({
+      id: item.id.toString(),
+      articleId: item.article_id.toString(),
+      name: item.name,
+      email: item.email,
+      text: item.content,
+      date: new Date(item.created_at).toLocaleDateString('id-ID', { 
+        day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+      })
+    }));
+  } catch (error: any) {
+    console.error("Error fetching comments:", error.message || error);
+    return [];
+  }
+};
+
+export const createComment = async (articleId: string, name: string, email: string, text: string): Promise<Comment | null> => {
+  try {
+     // 1. Insert Comment
+     const { data, error } = await supabase
+       .from('comments')
+       .insert([
+         { 
+           article_id: articleId, 
+           name: name, 
+           email: email, 
+           content: text 
+         }
+       ])
+       .select()
+       .single();
+
+     if (error) {
+        console.error("Supabase Error creating comment:", error.message);
+        throw error;
+     }
+
+     // 2. Increment comment count using the generic helper
+     await incrementField(articleId, 'comment_count');
+
+     return {
+        id: data.id.toString(),
+        articleId: data.article_id.toString(),
+        name: data.name,
+        email: data.email,
+        text: data.content,
+        date: "Baru saja"
+     };
+  } catch (error: any) {
+    console.error("Error creating comment:", error.message || error);
+    return null;
+  }
 };

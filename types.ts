@@ -26,3 +26,12 @@ export type NavItem = {
   path: string;
   category: Category | null;
 };
+
+export interface Comment {
+  id: string;
+  articleId: string;
+  name: string;
+  email?: string;
+  text: string;
+  date: string;
+}

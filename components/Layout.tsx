@@ -3,10 +3,11 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Menu, X, Search, ShieldCheck, ChevronRight, 
   Home, Siren, Shield, Calendar, Sparkles, FileText,
-  Facebook, Instagram, Twitter, Youtube, List, Bell,
-  ChevronUp, Archive
+  Facebook, Instagram, Twitter, Youtube, List,
+  ChevronUp, Archive, Eye
 } from 'lucide-react';
-import { NavItem, Category } from '../types';
+import { NavItem, Category, Article } from '../types';
+import { getPopularArticles } from '../services/geminiService';
 
 const navItems: NavItem[] = [
   { label: 'Kriminal', path: '/kriminal', category: Category.KRIMINAL },
@@ -39,6 +40,10 @@ export const Layout: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Popular Articles State
+  const [popularArticles, setPopularArticles] = useState<Article[]>([]);
+  const [loadingPopular, setLoadingPopular] = useState(false);
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -51,6 +56,22 @@ export const Layout: React.FC = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Fetch Popular Articles on Mount
+  useEffect(() => {
+    const fetchPopular = async () => {
+        setLoadingPopular(true);
+        try {
+            const data = await getPopularArticles();
+            setPopularArticles(data);
+        } catch (error) {
+            console.error("Failed to load popular articles", error);
+        } finally {
+            setLoadingPopular(false);
+        }
+    };
+    fetchPopular();
+  }, [location.pathname]); // Re-fetch on navigation to update views count if needed
 
   const scrollToTop = () => {
     window.scrollTo({
@@ -65,20 +86,27 @@ export const Layout: React.FC = () => {
     setIsSearchOpen(false); // Close search on navigation
   }, [location]);
 
-  // Prevent body scroll when menu is open
+  // Prevent body scroll when menu or search is open
   useEffect(() => {
-    if (isMobileMenuOpen) {
+    if (isMobileMenuOpen || isSearchOpen) {
         document.body.style.overflow = 'hidden';
     } else {
         document.body.style.overflow = 'unset';
     }
-  }, [isMobileMenuOpen]);
+  }, [isMobileMenuOpen, isSearchOpen]);
 
-  // Focus search input when opened
+  // Focus search input when opened and handle Escape key
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
       setTimeout(() => searchInputRef.current?.focus(), 100);
     }
+    
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsSearchOpen(false);
+    };
+    
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
   }, [isSearchOpen]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -89,6 +117,10 @@ export const Layout: React.FC = () => {
       setIsMobileMenuOpen(false);
       setSearchQuery('');
     }
+  };
+
+  const handleArticleClick = (article: Article) => {
+      navigate(`/article/${article.id}`, { state: { article } });
   };
 
   return (
@@ -162,55 +194,89 @@ export const Layout: React.FC = () => {
               <div className="w-px h-6 bg-gray-200 mx-2"></div>
 
               <div className="flex items-center gap-2">
-                <div className="relative flex items-center">
-                    {/* Expandable Search Bar */}
-                    <form 
-                      onSubmit={handleSearchSubmit}
-                      className={`absolute right-0 top-1/2 -translate-y-1/2 flex items-center transition-all duration-300 overflow-hidden bg-white ${
-                        isSearchOpen ? 'w-64 opacity-100 shadow-lg border border-gray-200 rounded-full mr-10' : 'w-0 opacity-0'
-                      }`}
-                    >
-                       <input 
-                          ref={searchInputRef}
-                          type="text"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="Cari berita..."
-                          className="w-full h-full px-4 py-2 text-sm outline-none text-gray-700 bg-transparent"
-                       />
-                    </form>
-
-                    <button 
-                      onClick={() => {
-                        if (isSearchOpen && searchQuery) {
-                           handleSearchSubmit({ preventDefault: () => {} } as React.FormEvent);
-                        } else {
-                           setIsSearchOpen(!isSearchOpen);
-                        }
-                      }}
-                      className={`p-2 hover:text-primary hover:bg-red-50 rounded-full transition-all relative z-10 ${isSearchOpen ? 'text-primary bg-red-50' : 'text-gray-400'}`}
-                    >
-                      {isSearchOpen ? <X size={20} strokeWidth={2} /> : <Search size={20} strokeWidth={2} />}
-                    </button>
-                </div>
-
-                <button className="p-2 text-gray-400 hover:text-primary hover:bg-red-50 rounded-full transition-all relative">
-                   <Bell size={20} strokeWidth={2} />
-                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                </button>
+                 {/* Trigger Search Button */}
+                 <button 
+                    onClick={() => setIsSearchOpen(true)}
+                    className="p-2 text-gray-400 hover:text-primary hover:bg-red-50 rounded-full transition-all transform hover:scale-105"
+                    aria-label="Cari Berita"
+                  >
+                    <Search size={22} strokeWidth={2} />
+                  </button>
               </div>
             </nav>
 
             {/* Mobile Menu Button */}
-            <button 
-              className="lg:hidden p-2 text-gray-800 focus:outline-none hover:text-primary transition-colors"
-              onClick={() => setIsMobileMenuOpen(true)}
-            >
-              <Menu size={28} strokeWidth={1.5} />
-            </button>
+            <div className="flex items-center gap-2 lg:hidden">
+              <button 
+                onClick={() => setIsSearchOpen(true)}
+                className="p-2 text-gray-800 hover:text-primary transition-colors"
+              >
+                <Search size={24} strokeWidth={1.5} />
+              </button>
+              <button 
+                className="p-2 text-gray-800 focus:outline-none hover:text-primary transition-colors"
+                onClick={() => setIsMobileMenuOpen(true)}
+              >
+                <Menu size={28} strokeWidth={1.5} />
+              </button>
+            </div>
           </div>
         </div>
       </header>
+
+      {/* FULL SCREEN SEARCH OVERLAY - ELEGANT & MODERN */}
+      <div 
+        className={`fixed inset-0 bg-white/95 backdrop-blur-xl z-[60] flex flex-col items-center justify-center transition-all duration-500 ${
+            isSearchOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
+        }`}
+      >
+        {/* Close Button */}
+        <button 
+            onClick={() => setIsSearchOpen(false)} 
+            className="absolute top-8 right-8 p-3 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition-all transform hover:rotate-90 duration-300"
+        >
+            <X size={32} strokeWidth={1.5} />
+        </button>
+
+        <div className="w-full max-w-3xl px-6 animate-in slide-in-from-bottom-4 fade-in duration-500">
+            <h2 className="text-center text-primary font-bold tracking-widest uppercase text-sm mb-8">Pencarian Berita</h2>
+            <form onSubmit={handleSearchSubmit} className="relative w-full group">
+                <input 
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Ketik kata kunci..."
+                    className="w-full bg-transparent text-3xl md:text-5xl font-serif font-bold text-gray-900 placeholder:text-gray-300 border-b-2 border-gray-200 focus:border-primary py-6 outline-none transition-all text-center"
+                />
+                <button 
+                    type="submit" 
+                    className="absolute right-0 top-1/2 -translate-y-1/2 p-4 text-gray-300 group-focus-within:text-primary hover:text-primary transition-colors duration-300"
+                >
+                     <Search size={32} />
+                </button>
+            </form>
+            <p className="text-center text-gray-400 mt-6 text-sm font-light">Tekan <span className="font-medium text-gray-500">Enter</span> untuk mencari</p>
+            
+            {/* Quick Suggestions (Optional) */}
+            <div className="mt-12 flex flex-wrap justify-center gap-3">
+               <span className="text-sm text-gray-400 mr-2">Populer:</span>
+               {['Kriminal', 'Laka Lantas', 'Narkoba', 'Pilkada', 'Kapolresta'].map(tag => (
+                   <button 
+                     key={tag}
+                     onClick={() => {
+                        setSearchQuery(tag);
+                        navigate(`/search?q=${encodeURIComponent(tag)}`);
+                        setIsSearchOpen(false);
+                     }}
+                     className="text-sm px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-primary hover:text-white transition-colors"
+                   >
+                       {tag}
+                   </button>
+               ))}
+            </div>
+        </div>
+      </div>
 
       {/* Mobile Menu Drawer */}
       {/* Backdrop */}
@@ -246,22 +312,6 @@ export const Layout: React.FC = () => {
 
          {/* Drawer Content */}
          <div className="flex-1 overflow-y-auto p-6">
-             {/* Search */}
-             <div className="mb-8">
-                 <form onSubmit={handleSearchSubmit} className="relative group">
-                    <input 
-                      type="text" 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Cari berita..." 
-                      className="w-full bg-gray-50 border border-gray-200 rounded-full py-3 px-5 pl-12 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all shadow-sm text-sm"
-                    />
-                    <button type="submit" className="absolute left-4 top-3.5 text-gray-400 group-focus-within:text-primary transition-colors">
-                      <Search size={18} />
-                    </button>
-                 </form>
-             </div>
-
              {/* Nav Links */}
              <nav className="space-y-2">
                  {navItems.map((item) => (
@@ -358,11 +408,11 @@ export const Layout: React.FC = () => {
             {/* Sidebar / Ads Area (30%) */}
             <aside className="w-full lg:w-[30%] space-y-8">
               
-              {/* Ad Slot 1 - 1:1 */}
-              <div className="bg-gray-200 border border-gray-300 rounded-lg w-full aspect-square flex flex-col items-center justify-center text-gray-400 relative overflow-hidden group">
+              {/* Ad Slot 1 - 4:5 (Moved to top) */}
+              <div className="bg-gray-200 border border-gray-300 rounded-lg w-full aspect-[4/5] flex flex-col items-center justify-center text-gray-400 relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-50"></div>
                 <span className="font-bold text-lg relative z-10">IKLAN SPACE</span>
-                <span className="text-sm relative z-10">1 : 1</span>
+                <span className="text-sm relative z-10">4 : 5</span>
               </div>
 
               {/* Trending / Popular Widget */}
@@ -373,27 +423,46 @@ export const Layout: React.FC = () => {
                   </h3>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="p-4 hover:bg-gray-50 transition-colors cursor-pointer group" onClick={() => navigate('/')}>
-                      <div className="flex gap-3">
-                         <span className="text-2xl font-black text-gray-200 group-hover:text-primary/30 font-serif transition-colors">0{i}</span>
-                         <div>
-                            <h4 className="text-sm font-bold text-gray-800 group-hover:text-primary leading-snug line-clamp-2 mb-1 transition-colors">
-                              Kapolresta Sorong Kota Pimpin Apel Gelar Pasukan
-                            </h4>
-                            <span className="text-[10px] text-gray-400 uppercase tracking-wider">Kegiatan • 2 Jam lalu</span>
-                         </div>
+                  {loadingPopular ? (
+                     <div className="p-8 flex justify-center">
+                        <div className="w-6 h-6 border-2 border-gray-200 border-t-primary rounded-full animate-spin"></div>
+                     </div>
+                  ) : popularArticles.length > 0 ? (
+                    popularArticles.map((article, i) => (
+                      <div 
+                        key={article.id} 
+                        className="p-4 hover:bg-gray-50 transition-colors cursor-pointer group" 
+                        onClick={() => handleArticleClick(article)}
+                      >
+                        <div className="flex gap-3">
+                           <span className="text-2xl font-black text-gray-200 group-hover:text-primary/30 font-serif transition-colors w-8 flex-shrink-0 text-center">0{i + 1}</span>
+                           <div>
+                              <h4 className="text-sm font-bold text-gray-800 group-hover:text-primary leading-snug line-clamp-2 mb-1 transition-colors">
+                                {article.title}
+                              </h4>
+                              <div className="flex items-center gap-3">
+                                 <span className="text-[10px] text-primary font-bold uppercase tracking-wider bg-red-50 px-1.5 rounded">{article.category}</span>
+                                 <span className="text-[10px] text-gray-400 flex items-center">
+                                    <Eye size={10} className="mr-1" /> {article.views}
+                                 </span>
+                              </div>
+                           </div>
+                        </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center text-gray-400 text-xs">
+                        Belum ada artikel populer
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
-               {/* Ad Slot 2 (Sticky) - 4:5 */}
-              <div className="sticky top-24 bg-gray-200 border border-gray-300 rounded-lg w-full aspect-[4/5] flex flex-col items-center justify-center text-gray-400 relative overflow-hidden">
+               {/* Ad Slot 2 (Sticky) - 1:1 (Moved to bottom) */}
+              <div className="sticky top-24 bg-gray-200 border border-gray-300 rounded-lg w-full aspect-square flex flex-col items-center justify-center text-gray-400 relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-50"></div>
                 <span className="font-bold text-lg relative z-10">IKLAN SPACE</span>
-                <span className="text-sm relative z-10">4 : 5</span>
+                <span className="text-sm relative z-10">1 : 1</span>
               </div>
 
             </aside>
@@ -415,7 +484,7 @@ export const Layout: React.FC = () => {
       {/* Footer */}
       <footer className="bg-primary-dark text-white pt-16 pb-8">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
             <div className="col-span-1 md:col-span-1">
               <div className="mb-6">
                 <img src="https://raw.githubusercontent.com/esport-restasorkot/imagesrc/main/TBNewsSorkotWhite.png" alt="TB-News" className="h-12 w-auto" />
@@ -452,21 +521,6 @@ export const Layout: React.FC = () => {
                 <li>humas@polrestasorongkota.com</li>
                 <li>(0951) 321xxx</li>
               </ul>
-            </div>
-
-             <div>
-              <h4 className="text-lg font-bold mb-6 text-white border-l-4 border-white/30 pl-3">Langganan</h4>
-              <p className="text-red-100/70 text-sm mb-4">Dapatkan berita terbaru langsung di inbox Anda.</p>
-              <div className="flex">
-                <input 
-                  type="email" 
-                  placeholder="Email Anda" 
-                  className="bg-red-900/30 border border-red-800 text-white px-4 py-2 w-full text-sm focus:outline-none focus:border-white rounded-l-md placeholder-red-200/50" 
-                />
-                <button className="bg-white text-primary-dark hover:bg-gray-100 px-4 py-2 font-bold text-sm rounded-r-md transition-colors">
-                  Daftar
-                </button>
-              </div>
             </div>
           </div>
           
