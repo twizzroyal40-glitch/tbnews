@@ -360,6 +360,13 @@ const DEFAULT_ADS: AdConfig[] = [
     isActive: false
   },
   {
+    position: 'sidebar_middle',
+    title: 'Sidebar Tengah (4:5)',
+    imageUrl: '',
+    linkUrl: '#',
+    isActive: false
+  },
+  {
     position: 'sidebar_bottom',
     title: 'Sidebar Bawah (1:1 Sticky)',
     imageUrl: '',
@@ -369,39 +376,51 @@ const DEFAULT_ADS: AdConfig[] = [
 ];
 
 export const getAds = async (): Promise<AdConfig[]> => {
+  let fetchedAds: AdConfig[] = [];
+
+  // 1. Try Fetch from Supabase
   try {
     const { data, error } = await supabase
       .from('ads')
       .select('*');
 
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      // Table exists but empty, check local storage
-      const local = localStorage.getItem('tbnews_ads_backup');
-      return local ? JSON.parse(local) : DEFAULT_ADS;
+    if (!error && data && data.length > 0) {
+      fetchedAds = data.map((item: any) => ({
+        id: item.id,
+        position: item.position,
+        title: item.title,
+        imageUrl: item.image_url,
+        linkUrl: item.link_url,
+        isActive: item.is_active
+      }));
     }
-
-    return data.map((item: any) => ({
-      id: item.id,
-      position: item.position,
-      title: item.title,
-      imageUrl: item.image_url,
-      linkUrl: item.link_url,
-      isActive: item.is_active
-    }));
-
   } catch (error: any) {
-    console.warn("Could not fetch ads from Supabase (using fallback):", error.message);
-    const local = localStorage.getItem('tbnews_ads_backup');
-    const localData = local ? JSON.parse(local) : [];
-    
-    // Merge local data with default structure to ensure all slots exist
-    return DEFAULT_ADS.map(defAd => {
-        const found = localData.find((l: AdConfig) => l.position === defAd.position);
-        return found || defAd;
-    });
+    console.warn("Supabase fetch failed (ads):", error.message);
   }
+
+  // 2. Fallback: If Supabase empty/failed, try LocalStorage
+  if (fetchedAds.length === 0) {
+    try {
+      const local = localStorage.getItem('tbnews_ads_backup');
+      if (local) {
+        fetchedAds = JSON.parse(local);
+      }
+    } catch (e) {
+      console.error("Local storage parse failed", e);
+    }
+  }
+
+  // 3. MERGE LOGIC: Combine fetched data with DEFAULT_ADS
+  // This ensures that if we add a new slot (like sidebar_middle) to the code,
+  // it appears in the app even if it doesn't exist in the DB/LocalStorage yet.
+  return DEFAULT_ADS.map(defaultAd => {
+    // Find if we have saved data for this position
+    const savedAd = fetchedAds.find(ad => ad.position === defaultAd.position);
+    
+    // If found, use the saved data (keeping ID, active state, image). 
+    // If not found, use the default "placeholder" config.
+    return savedAd ? { ...defaultAd, ...savedAd } : defaultAd;
+  });
 };
 
 export const saveAd = async (ad: AdConfig): Promise<void> => {

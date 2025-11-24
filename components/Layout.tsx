@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { NavItem, Category, Article, AdConfig } from '../types';
 import { getPopularArticles, getAds } from '../services/geminiService';
-import { CookieConsent } from './CookieConsent';
 
 const navItems: NavItem[] = [
   { label: 'Kriminal', path: '/kriminal', category: Category.KRIMINAL },
@@ -146,6 +145,7 @@ export const Layout: React.FC = () => {
   };
 
   const sidebarTopAd = getAdByPosition('sidebar_top');
+  const sidebarMiddleAd = getAdByPosition('sidebar_middle');
   const sidebarBottomAd = getAdByPosition('sidebar_bottom');
 
   return (
@@ -165,9 +165,18 @@ export const Layout: React.FC = () => {
             <NavLink to="/kontak" className="hover:text-red-200 transition-colors">Kontak</NavLink>
             <NavLink to="/redaksi" className="hover:text-red-200 transition-colors">Redaksi</NavLink>
             <div className="flex space-x-3 border-l border-white/20 pl-6">
-               <Facebook size={14} className="cursor-pointer hover:text-red-200" />
-               <Twitter size={14} className="cursor-pointer hover:text-red-200" />
-               <Instagram size={14} className="cursor-pointer hover:text-red-200" />
+               <a href="https://www.facebook.com/profile.php?id=100087469704963" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                 <Facebook size={14} className="cursor-pointer hover:text-red-200" />
+               </a>
+               <a href="https://x.com/humas_sorkot" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)">
+                 <Twitter size={14} className="cursor-pointer hover:text-red-200" />
+               </a>
+               <a href="https://www.instagram.com/polrestasorongkota/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                 <Instagram size={14} className="cursor-pointer hover:text-red-200" />
+               </a>
+               <a href="https://www.youtube.com/@humaspolrestasorongkota" target="_blank" rel="noopener noreferrer" aria-label="Youtube">
+                 <Youtube size={14} className="cursor-pointer hover:text-red-200" />
+               </a>
             </div>
           </div>
         </div>
@@ -403,10 +412,18 @@ export const Layout: React.FC = () => {
              </div>
              
              <div className="flex justify-center space-x-8 text-gray-400 mb-4">
-                <Facebook size={20} className="hover:text-blue-600 cursor-pointer transition-colors" />
-                <Instagram size={20} className="hover:text-pink-600 cursor-pointer transition-colors" />
-                <Twitter size={20} className="hover:text-blue-400 cursor-pointer transition-colors" />
-                <Youtube size={20} className="hover:text-red-600 cursor-pointer transition-colors" />
+                <a href="https://www.facebook.com/profile.php?id=100087469704963" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                  <Facebook size={20} className="hover:text-blue-600 cursor-pointer transition-colors" />
+                </a>
+                <a href="https://www.instagram.com/polrestasorongkota/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                  <Instagram size={20} className="hover:text-pink-600 cursor-pointer transition-colors" />
+                </a>
+                <a href="https://x.com/humas_sorkot" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)">
+                  <Twitter size={20} className="hover:text-blue-400 cursor-pointer transition-colors" />
+                </a>
+                <a href="https://www.youtube.com/@humaspolrestasorongkota" target="_blank" rel="noopener noreferrer" aria-label="Youtube">
+                  <Youtube size={20} className="hover:text-red-600 cursor-pointer transition-colors" />
+                </a>
              </div>
              <p className="text-[10px] text-center text-gray-400">
                 &copy; {new Date().getFullYear()} Polresta Sorong Kota.
@@ -433,32 +450,16 @@ export const Layout: React.FC = () => {
             {/* Sidebar / Ads Area (30%) */}
             <aside className="w-full lg:w-[30%] space-y-8">
               
-              {/* Ad Slot 1 - 4:5 (Moved to top) */}
-              {sidebarTopAd ? (
+              {/* Ad Slot 1 - 4:5 (Top) - Only show if active and has image */}
+              {sidebarTopAd && sidebarTopAd.imageUrl && (
                  <a 
                     href={formatAdUrl(sidebarTopAd.linkUrl)} 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="block w-full aspect-[4/5] rounded-lg overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative"
                   >
-                    {sidebarTopAd.imageUrl ? (
-                        <img src={sidebarTopAd.imageUrl} alt={sidebarTopAd.title} className="w-full h-full object-cover" />
-                    ) : (
-                        // Fallback if active but no image
-                        <div className="w-full h-full bg-gray-200 flex flex-col items-center justify-center text-gray-400">
-                           <span className="font-bold text-lg">IKLAN</span>
-                           <span className="text-xs">{sidebarTopAd.title}</span>
-                        </div>
-                    )}
-                    <div className="absolute top-2 right-2 bg-white/80 px-1.5 py-0.5 rounded text-[10px] text-gray-500 font-bold border border-gray-200">Ad</div>
+                    <img src={sidebarTopAd.imageUrl} alt={sidebarTopAd.title} className="w-full h-full object-cover" />
                  </a>
-              ) : (
-                // Placeholder if inactive or missing
-                <div className="bg-gray-200 border border-gray-300 rounded-lg w-full aspect-[4/5] flex flex-col items-center justify-center text-gray-400 relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-50"></div>
-                  <span className="font-bold text-lg relative z-10">IKLAN SPACE</span>
-                  <span className="text-sm relative z-10">4 : 5</span>
-                </div>
               )}
 
               {/* Trending / Popular Widget */}
@@ -504,8 +505,20 @@ export const Layout: React.FC = () => {
                 </div>
               </div>
 
-               {/* Ad Slot 2 (Sticky) - 1:1 (Moved to bottom) */}
-               {sidebarBottomAd ? (
+               {/* Ad Slot 3 - 4:5 (Middle - NEW) - Only show if active and has image */}
+               {sidebarMiddleAd && sidebarMiddleAd.imageUrl && (
+                 <a 
+                    href={formatAdUrl(sidebarMiddleAd.linkUrl)} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="block w-full aspect-[4/5] rounded-lg overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative"
+                  >
+                     <img src={sidebarMiddleAd.imageUrl} alt={sidebarMiddleAd.title} className="w-full h-full object-cover" />
+                 </a>
+               )}
+
+               {/* Ad Slot 2 (Sticky) - 1:1 (Bottom) - Only show if active and has image */}
+               {sidebarBottomAd && sidebarBottomAd.imageUrl && (
                  <div className="sticky top-24">
                      <a 
                         href={formatAdUrl(sidebarBottomAd.linkUrl)} 
@@ -513,23 +526,9 @@ export const Layout: React.FC = () => {
                         rel="noopener noreferrer" 
                         className="block w-full aspect-square rounded-lg overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative"
                      >
-                        {sidebarBottomAd.imageUrl ? (
-                            <img src={sidebarBottomAd.imageUrl} alt={sidebarBottomAd.title} className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full bg-gray-200 flex flex-col items-center justify-center text-gray-400">
-                               <span className="font-bold text-lg">IKLAN</span>
-                               <span className="text-xs">{sidebarBottomAd.title}</span>
-                            </div>
-                        )}
-                        <div className="absolute top-2 right-2 bg-white/80 px-1.5 py-0.5 rounded text-[10px] text-gray-500 font-bold border border-gray-200">Ad</div>
+                        <img src={sidebarBottomAd.imageUrl} alt={sidebarBottomAd.title} className="w-full h-full object-cover" />
                      </a>
                  </div>
-               ) : (
-                  <div className="sticky top-24 bg-gray-200 border border-gray-300 rounded-lg w-full aspect-square flex flex-col items-center justify-center text-gray-400 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-50"></div>
-                    <span className="font-bold text-lg relative z-10">IKLAN SPACE</span>
-                    <span className="text-sm relative z-10">1 : 1</span>
-                  </div>
                )}
 
             </aside>
@@ -547,9 +546,6 @@ export const Layout: React.FC = () => {
       >
         <ChevronUp size={24} strokeWidth={2.5} />
       </button>
-      
-      {/* Cookie Consent Popup */}
-      <CookieConsent />
 
       {/* Footer */}
       <footer className="bg-primary-dark text-white pt-16 pb-8">

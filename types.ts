@@ -38,7 +38,7 @@ export interface Comment {
 
 export interface AdConfig {
   id?: string;
-  position: 'sidebar_top' | 'sidebar_bottom';
+  position: 'sidebar_top' | 'sidebar_middle' | 'sidebar_bottom';
   title: string;
   imageUrl: string;
   linkUrl: string;

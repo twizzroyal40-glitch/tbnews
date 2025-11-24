@@ -31,7 +31,7 @@ export const AdminPage: React.FC = () => {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // --- DELETE CONFIRMATION STATE ---
+  // --- DELETE CONFIRMATION STATE (ARTICLES) ---
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -39,6 +39,10 @@ export const AdminPage: React.FC = () => {
   const [galleryImages, setGalleryImages] = useState<{name: string, url: string}[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  
+  // --- DELETE CONFIRMATION STATE (IMAGES) ---
+  const [deleteImageTarget, setDeleteImageTarget] = useState<string | null>(null);
+  const [isDeletingImage, setIsDeletingImage] = useState(false);
 
   // --- ADS STATE ---
   const [ads, setAds] = useState<AdConfig[]>([]);
@@ -181,15 +185,23 @@ export const AdminPage: React.FC = () => {
     setTimeout(() => setCopiedUrl(null), 2000);
   };
 
-  const handleDeleteImage = async (name: string) => {
-     if (confirm("Apakah Anda yakin ingin menghapus gambar ini secara permanen?")) {
-        try {
-            await deleteImage(name);
-            setGalleryImages(prev => prev.filter(img => img.name !== name));
-        } catch (e: any) {
-            alert("Gagal menghapus: " + e.message);
-        }
-     }
+  const promptDeleteImage = (name: string) => {
+      setDeleteImageTarget(name);
+  };
+
+  const executeImageDelete = async () => {
+      if (!deleteImageTarget) return;
+
+      setIsDeletingImage(true);
+      try {
+          await deleteImage(deleteImageTarget);
+          setGalleryImages(prev => prev.filter(img => img.name !== deleteImageTarget));
+          setDeleteImageTarget(null);
+      } catch (e: any) {
+          alert("Gagal menghapus: " + e.message);
+      } finally {
+          setIsDeletingImage(false);
+      }
   };
 
   const handleStandaloneUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -739,8 +751,8 @@ export const AdminPage: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="p-6 space-y-4">
-                                    {/* Image Preview */}
-                                    <div className={`w-full bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group flex items-center justify-center ${ad.position === 'sidebar_top' ? 'aspect-[4/5]' : 'aspect-square'}`}>
+                                    {/* Image Preview - Updated to support sidebar_middle as 4:5 */}
+                                    <div className={`w-full bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group flex items-center justify-center ${(ad.position === 'sidebar_top' || ad.position === 'sidebar_middle') ? 'aspect-[4/5]' : 'aspect-square'}`}>
                                         {ad.imageUrl ? (
                                             <img src={ad.imageUrl} alt="Ad Preview" className="w-full h-full object-cover" />
                                         ) : (
@@ -836,7 +848,7 @@ export const AdminPage: React.FC = () => {
                                             {copiedUrl === img.url ? 'Tersalin' : 'Salin URL'}
                                         </button>
                                         <button 
-                                            onClick={() => handleDeleteImage(img.name)}
+                                            onClick={() => promptDeleteImage(img.name)}
                                             className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center hover:bg-red-700 w-full justify-center transform scale-95 hover:scale-100 transition-all"
                                         >
                                             <Trash2 size={14} className="mr-1" />
@@ -1114,7 +1126,7 @@ export const AdminPage: React.FC = () => {
         )}
       </div>
 
-      {/* --- DELETE CONFIRMATION MODAL --- */}
+      {/* --- DELETE CONFIRMATION MODAL (ARTICLE) --- */}
       {deleteTargetId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100">
@@ -1139,6 +1151,38 @@ export const AdminPage: React.FC = () => {
                             className="flex-1 px-4 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors text-sm flex justify-center items-center"
                         >
                             {isDeleting ? <Loader2 size={16} className="animate-spin" /> : 'Ya, Hapus'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+      
+      {/* --- DELETE CONFIRMATION MODAL (IMAGE) --- */}
+      {deleteImageTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100">
+                <div className="p-6 text-center">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Trash2 className="text-red-600 w-8 h-8" />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Hapus Gambar?</h3>
+                    <p className="text-gray-500 text-sm mb-6">
+                        Gambar akan dihapus permanen. Jika gambar ini digunakan di artikel, gambar tersebut akan rusak (broken link).
+                    </p>
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setDeleteImageTarget(null)}
+                            className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                        >
+                            Batal
+                        </button>
+                        <button 
+                            onClick={executeImageDelete}
+                            disabled={isDeletingImage}
+                            className="flex-1 px-4 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors text-sm flex justify-center items-center"
+                        >
+                            {isDeletingImage ? <Loader2 size={16} className="animate-spin" /> : 'Ya, Hapus'}
                         </button>
                     </div>
                 </div>
