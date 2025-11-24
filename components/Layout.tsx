@@ -6,8 +6,9 @@ import {
   Facebook, Instagram, Twitter, Youtube, List,
   ChevronUp, Archive, Eye
 } from 'lucide-react';
-import { NavItem, Category, Article } from '../types';
-import { getPopularArticles } from '../services/geminiService';
+import { NavItem, Category, Article, AdConfig } from '../types';
+import { getPopularArticles, getAds } from '../services/geminiService';
+import { CookieConsent } from './CookieConsent';
 
 const navItems: NavItem[] = [
   { label: 'Kriminal', path: '/kriminal', category: Category.KRIMINAL },
@@ -44,6 +45,9 @@ export const Layout: React.FC = () => {
   const [popularArticles, setPopularArticles] = useState<Article[]>([]);
   const [loadingPopular, setLoadingPopular] = useState(false);
 
+  // Ads State
+  const [ads, setAds] = useState<AdConfig[]>([]);
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -57,21 +61,25 @@ export const Layout: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fetch Popular Articles on Mount
+  // Fetch Data on Mount
   useEffect(() => {
-    const fetchPopular = async () => {
+    const fetchData = async () => {
         setLoadingPopular(true);
         try {
-            const data = await getPopularArticles();
-            setPopularArticles(data);
+            const [popularData, adsData] = await Promise.all([
+                getPopularArticles(),
+                getAds()
+            ]);
+            setPopularArticles(popularData);
+            setAds(adsData);
         } catch (error) {
-            console.error("Failed to load popular articles", error);
+            console.error("Failed to load initial data", error);
         } finally {
             setLoadingPopular(false);
         }
     };
-    fetchPopular();
-  }, [location.pathname]); // Re-fetch on navigation to update views count if needed
+    fetchData();
+  }, [location.pathname]);
 
   const scrollToTop = () => {
     window.scrollTo({
@@ -80,11 +88,12 @@ export const Layout: React.FC = () => {
     });
   };
 
-  // Close mobile menu on route change
+  // Handle route change: Scroll to top & Close menus
   useEffect(() => {
+    window.scrollTo(0, 0); // Always start from top on navigation
     setIsMobileMenuOpen(false);
-    setIsSearchOpen(false); // Close search on navigation
-  }, [location]);
+    setIsSearchOpen(false); 
+  }, [location.pathname]);
 
   // Prevent body scroll when menu or search is open
   useEffect(() => {
@@ -123,6 +132,22 @@ export const Layout: React.FC = () => {
       navigate(`/article/${article.id}`, { state: { article } });
   };
 
+  const getAdByPosition = (position: string) => {
+      return ads.find(ad => ad.position === position && ad.isActive);
+  };
+
+  // Helper to ensure URL works (adds https if missing)
+  const formatAdUrl = (url: string) => {
+    if (!url) return '#';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('#')) {
+      return url;
+    }
+    return `https://${url}`;
+  };
+
+  const sidebarTopAd = getAdByPosition('sidebar_top');
+  const sidebarBottomAd = getAdByPosition('sidebar_bottom');
+
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-800 bg-slate-50 relative">
       {/* Top Bar - Elegant Dark Red */}
@@ -136,9 +161,9 @@ export const Layout: React.FC = () => {
              <span className="opacity-90">Kota Sorong, Papua Barat Daya</span>
           </div>
           <div className="flex items-center space-x-6">
-            <a href="#" className="hover:text-red-200 transition-colors">Tentang Kami</a>
-            <a href="#" className="hover:text-red-200 transition-colors">Kontak</a>
-            <a href="#" className="hover:text-red-200 transition-colors">Redaksi</a>
+            <NavLink to="/tentang" className="hover:text-red-200 transition-colors">Tentang Kami</NavLink>
+            <NavLink to="/kontak" className="hover:text-red-200 transition-colors">Kontak</NavLink>
+            <NavLink to="/redaksi" className="hover:text-red-200 transition-colors">Redaksi</NavLink>
             <div className="flex space-x-3 border-l border-white/20 pl-6">
                <Facebook size={14} className="cursor-pointer hover:text-red-200" />
                <Twitter size={14} className="cursor-pointer hover:text-red-200" />
@@ -372,9 +397,9 @@ export const Layout: React.FC = () => {
          {/* Drawer Footer */}
          <div className="p-6 border-t border-gray-100 bg-gray-50/50">
              <div className="grid grid-cols-3 gap-2 mb-6 text-center">
-                 <a href="#" className="text-xs font-medium text-gray-500 hover:text-primary transition-colors">Tentang</a>
-                 <a href="#" className="text-xs font-medium text-gray-500 hover:text-primary transition-colors">Redaksi</a>
-                 <a href="#" className="text-xs font-medium text-gray-500 hover:text-primary transition-colors">Kontak</a>
+                 <NavLink to="/tentang" onClick={() => setIsMobileMenuOpen(false)} className="text-xs font-medium text-gray-500 hover:text-primary transition-colors">Tentang</NavLink>
+                 <NavLink to="/redaksi" onClick={() => setIsMobileMenuOpen(false)} className="text-xs font-medium text-gray-500 hover:text-primary transition-colors">Redaksi</NavLink>
+                 <NavLink to="/kontak" onClick={() => setIsMobileMenuOpen(false)} className="text-xs font-medium text-gray-500 hover:text-primary transition-colors">Kontak</NavLink>
              </div>
              
              <div className="flex justify-center space-x-8 text-gray-400 mb-4">
@@ -409,11 +434,32 @@ export const Layout: React.FC = () => {
             <aside className="w-full lg:w-[30%] space-y-8">
               
               {/* Ad Slot 1 - 4:5 (Moved to top) */}
-              <div className="bg-gray-200 border border-gray-300 rounded-lg w-full aspect-[4/5] flex flex-col items-center justify-center text-gray-400 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-50"></div>
-                <span className="font-bold text-lg relative z-10">IKLAN SPACE</span>
-                <span className="text-sm relative z-10">4 : 5</span>
-              </div>
+              {sidebarTopAd ? (
+                 <a 
+                    href={formatAdUrl(sidebarTopAd.linkUrl)} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="block w-full aspect-[4/5] rounded-lg overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative"
+                  >
+                    {sidebarTopAd.imageUrl ? (
+                        <img src={sidebarTopAd.imageUrl} alt={sidebarTopAd.title} className="w-full h-full object-cover" />
+                    ) : (
+                        // Fallback if active but no image
+                        <div className="w-full h-full bg-gray-200 flex flex-col items-center justify-center text-gray-400">
+                           <span className="font-bold text-lg">IKLAN</span>
+                           <span className="text-xs">{sidebarTopAd.title}</span>
+                        </div>
+                    )}
+                    <div className="absolute top-2 right-2 bg-white/80 px-1.5 py-0.5 rounded text-[10px] text-gray-500 font-bold border border-gray-200">Ad</div>
+                 </a>
+              ) : (
+                // Placeholder if inactive or missing
+                <div className="bg-gray-200 border border-gray-300 rounded-lg w-full aspect-[4/5] flex flex-col items-center justify-center text-gray-400 relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-50"></div>
+                  <span className="font-bold text-lg relative z-10">IKLAN SPACE</span>
+                  <span className="text-sm relative z-10">4 : 5</span>
+                </div>
+              )}
 
               {/* Trending / Popular Widget */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -459,11 +505,32 @@ export const Layout: React.FC = () => {
               </div>
 
                {/* Ad Slot 2 (Sticky) - 1:1 (Moved to bottom) */}
-              <div className="sticky top-24 bg-gray-200 border border-gray-300 rounded-lg w-full aspect-square flex flex-col items-center justify-center text-gray-400 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-50"></div>
-                <span className="font-bold text-lg relative z-10">IKLAN SPACE</span>
-                <span className="text-sm relative z-10">1 : 1</span>
-              </div>
+               {sidebarBottomAd ? (
+                 <div className="sticky top-24">
+                     <a 
+                        href={formatAdUrl(sidebarBottomAd.linkUrl)} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="block w-full aspect-square rounded-lg overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative"
+                     >
+                        {sidebarBottomAd.imageUrl ? (
+                            <img src={sidebarBottomAd.imageUrl} alt={sidebarBottomAd.title} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full bg-gray-200 flex flex-col items-center justify-center text-gray-400">
+                               <span className="font-bold text-lg">IKLAN</span>
+                               <span className="text-xs">{sidebarBottomAd.title}</span>
+                            </div>
+                        )}
+                        <div className="absolute top-2 right-2 bg-white/80 px-1.5 py-0.5 rounded text-[10px] text-gray-500 font-bold border border-gray-200">Ad</div>
+                     </a>
+                 </div>
+               ) : (
+                  <div className="sticky top-24 bg-gray-200 border border-gray-300 rounded-lg w-full aspect-square flex flex-col items-center justify-center text-gray-400 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-50"></div>
+                    <span className="font-bold text-lg relative z-10">IKLAN SPACE</span>
+                    <span className="text-sm relative z-10">1 : 1</span>
+                  </div>
+               )}
 
             </aside>
           </div>
@@ -480,6 +547,9 @@ export const Layout: React.FC = () => {
       >
         <ChevronUp size={24} strokeWidth={2.5} />
       </button>
+      
+      {/* Cookie Consent Popup */}
+      <CookieConsent />
 
       {/* Footer */}
       <footer className="bg-primary-dark text-white pt-16 pb-8">
@@ -527,8 +597,8 @@ export const Layout: React.FC = () => {
           <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-red-200/60">
             <p>&copy; {new Date().getFullYear()} Polresta Sorong Kota. Hak Cipta Dilindungi.</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
-              <a href="#" className="hover:text-white">Privacy Policy</a>
-              <a href="#" className="hover:text-white">Terms of Service</a>
+              <NavLink to="/privacy" className="hover:text-white">Privacy Policy</NavLink>
+              <NavLink to="/terms" className="hover:text-white">Terms of Service</NavLink>
               <NavLink to="/tbnewssorkot" className="hover:text-white transition-colors">TB News Sorkot</NavLink>
             </div>
           </div>

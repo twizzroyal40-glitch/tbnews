@@ -35,3 +35,12 @@ export interface Comment {
   text: string;
   date: string;
 }
+
+export interface AdConfig {
+  id?: string;
+  position: 'sidebar_top' | 'sidebar_bottom';
+  title: string;
+  imageUrl: string;
+  linkUrl: string;
+  isActive: boolean;
+}

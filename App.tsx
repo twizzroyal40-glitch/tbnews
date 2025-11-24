@@ -7,6 +7,11 @@ import { ArticleDetail } from './pages/ArticleDetail';
 import { IndexPage } from './pages/IndexPage';
 import { SearchPage } from './pages/SearchPage';
 import { AdminPage } from './pages/AdminPage';
+import { RedaksiPage } from './pages/RedaksiPage';
+import { AboutPage } from './pages/AboutPage';
+import { ContactPage } from './pages/ContactPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
 import { Category } from './types';
 
 function App() {
@@ -74,6 +79,11 @@ function App() {
           <Route path="article/:id" element={<ArticleDetail />} />
           <Route path="archive" element={<IndexPage />} />
           <Route path="search" element={<SearchPage />} />
+          <Route path="redaksi" element={<RedaksiPage />} />
+          <Route path="tentang" element={<AboutPage />} />
+          <Route path="kontak" element={<ContactPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="terms" element={<TermsPage />} />
           <Route path="tbnewssorkot" element={<AdminPage />} />
           
           {/* Catch-all route: Redirects any unknown URL back to Home */}

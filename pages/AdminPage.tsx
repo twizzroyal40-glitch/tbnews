@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Category, Article } from '../types';
+import { Category, Article, AdConfig } from '../types';
 import { 
   createArticle, updateArticle, deleteArticle, uploadArticleImage, 
-  getAllArticlesFromSupabase, getGalleryImages, deleteImage 
+  getAllArticlesFromSupabase, getGalleryImages, deleteImage,
+  getAds, saveAd
 } from '../services/geminiService';
 import { supabase } from '../utils/supabase';
 import { 
   Upload, Save, Image as ImageIcon, ArrowLeft, CheckCircle, 
   Lock, LogOut, Loader2, AlertCircle, UserPlus, LogIn, Plus,
-  LayoutDashboard, FileText, Trash2, Edit, Search, Eye, Images, Copy, Check, X, AlertTriangle
+  LayoutDashboard, FileText, Trash2, Edit, Search, Eye, Images, Copy, Check, X, AlertTriangle, MonitorPlay
 } from 'lucide-react';
 
 export const AdminPage: React.FC = () => {
@@ -25,7 +26,7 @@ export const AdminPage: React.FC = () => {
   const [isSignUpMode, setIsSignUpMode] = useState(false);
 
   // --- DASHBOARD STATE ---
-  const [activeTab, setActiveTab] = useState<'list' | 'editor' | 'gallery'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'editor' | 'gallery' | 'ads'>('list');
   const [articles, setArticles] = useState<Article[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +39,11 @@ export const AdminPage: React.FC = () => {
   const [galleryImages, setGalleryImages] = useState<{name: string, url: string}[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+
+  // --- ADS STATE ---
+  const [ads, setAds] = useState<AdConfig[]>([]);
+  const [loadingAds, setLoadingAds] = useState(false);
+  const [savingAdId, setSavingAdId] = useState<string | null>(null); // tracks which ad is being saved
 
   // --- EDITOR FORM STATE ---
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,6 +82,7 @@ export const AdminPage: React.FC = () => {
       if (session?.user) {
         fetchArticles();
         fetchGallery(); // Pre-load gallery for faster modal opening
+        fetchAds();
       }
     };
 
@@ -86,6 +93,7 @@ export const AdminPage: React.FC = () => {
       if (session?.user) {
         fetchArticles();
         fetchGallery();
+        fetchAds();
       }
     });
 
@@ -117,9 +125,24 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  const fetchAds = async () => {
+    setLoadingAds(true);
+    try {
+      const data = await getAds();
+      setAds(data);
+    } catch (error) {
+      console.error("Failed to load ads", error);
+    } finally {
+      setLoadingAds(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'gallery') {
         fetchGallery();
+    }
+    if (activeTab === 'ads') {
+        fetchAds();
     }
   }, [activeTab]);
 
@@ -185,6 +208,40 @@ export const AdminPage: React.FC = () => {
             if (standaloneUploadRef.current) standaloneUploadRef.current.value = '';
         }
     }
+  };
+
+  // --- ADS HANDLERS ---
+  const handleAdChange = (index: number, field: keyof AdConfig, value: any) => {
+    const newAds = [...ads];
+    newAds[index] = { ...newAds[index], [field]: value };
+    setAds(newAds);
+  };
+
+  const handleAdImageUpload = async (index: number, file: File) => {
+      setSavingAdId(ads[index].position); // Show generic loading state
+      try {
+          const url = await uploadArticleImage(file);
+          if (url) {
+              handleAdChange(index, 'imageUrl', url);
+          }
+      } catch (error: any) {
+          alert("Gagal upload gambar iklan: " + error.message);
+      } finally {
+          setSavingAdId(null);
+      }
+  };
+
+  const handleSaveAd = async (index: number) => {
+      const ad = ads[index];
+      setSavingAdId(ad.position);
+      try {
+          await saveAd(ad);
+          alert(`Konfigurasi iklan "${ad.title}" berhasil disimpan.`);
+      } catch (error: any) {
+          alert(error.message);
+      } finally {
+          setSavingAdId(null);
+      }
   };
 
   // --- EDITOR HANDLERS ---
@@ -511,6 +568,17 @@ export const AdminPage: React.FC = () => {
             <Images size={18} className="mr-2" />
             Galeri Media
           </button>
+          <button 
+            onClick={() => setActiveTab('ads')}
+            className={`flex items-center px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
+              activeTab === 'ads' 
+                ? 'border-primary text-primary' 
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <MonitorPlay size={18} className="mr-2" />
+            Kelola Iklan
+          </button>
         </div>
 
         {/* --- LIST CONTENT --- */}
@@ -630,6 +698,95 @@ export const AdminPage: React.FC = () => {
                )}
             </div>
           </div>
+        )}
+
+        {/* --- ADS CONTENT --- */}
+        {activeTab === 'ads' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-800">Manajemen Iklan</h2>
+                        <p className="text-xs text-gray-500">Atur konten iklan yang muncul di sidebar website.</p>
+                    </div>
+                </div>
+
+                {loadingAds ? (
+                    <div className="flex justify-center py-20">
+                        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {ads.map((ad, idx) => (
+                            <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                        <MonitorPlay size={16} className="text-primary" />
+                                        {ad.title}
+                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${ad.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                                            {ad.isActive ? 'Aktif' : 'Nonaktif'}
+                                        </span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                className="sr-only peer" 
+                                                checked={ad.isActive} 
+                                                onChange={(e) => handleAdChange(idx, 'isActive', e.target.checked)}
+                                            />
+                                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                    {/* Image Preview */}
+                                    <div className={`w-full bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative group flex items-center justify-center ${ad.position === 'sidebar_top' ? 'aspect-[4/5]' : 'aspect-square'}`}>
+                                        {ad.imageUrl ? (
+                                            <img src={ad.imageUrl} alt="Ad Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="text-center p-4">
+                                                <ImageIcon className="mx-auto w-12 h-12 text-gray-300 mb-2" />
+                                                <p className="text-xs text-gray-400">Belum ada gambar</p>
+                                            </div>
+                                        )}
+                                        <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer">
+                                            <Upload className="text-white w-8 h-8 mb-2" />
+                                            <span className="text-white text-xs font-bold">Ganti Gambar</span>
+                                            <input type="file" hidden accept="image/*" onChange={(e) => e.target.files && handleAdImageUpload(idx, e.target.files[0])} />
+                                        </label>
+                                        {savingAdId === ad.position && (
+                                             <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                                                 <Loader2 className="animate-spin text-primary" />
+                                             </div>
+                                        )}
+                                    </div>
+
+                                    {/* URL Input */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1">Link Tujuan (URL)</label>
+                                        <input 
+                                            type="text" 
+                                            value={ad.linkUrl}
+                                            onChange={(e) => handleAdChange(idx, 'linkUrl', e.target.value)}
+                                            placeholder="https://..."
+                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                    </div>
+
+                                    <button 
+                                        onClick={() => handleSaveAd(idx)}
+                                        disabled={savingAdId === ad.position}
+                                        className="w-full bg-primary text-white py-2 rounded-lg text-sm font-bold hover:bg-primary-light transition-colors flex items-center justify-center"
+                                    >
+                                        {savingAdId === ad.position ? <Loader2 size={16} className="animate-spin mr-2" /> : <Save size={16} className="mr-2" />}
+                                        Simpan Perubahan
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         )}
 
         {/* --- GALLERY CONTENT --- */}

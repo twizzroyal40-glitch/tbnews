@@ -1,4 +1,4 @@
-import { Article, Category, Comment } from "../types";
+import { Article, Category, Comment, AdConfig } from "../types";
 import { supabase } from "../utils/supabase";
 
 // --- UTILS FOR DATE PARSING ---
@@ -346,5 +346,107 @@ export const createComment = async (articleId: string, name: string, email: stri
   } catch (error: any) {
     console.error("Error creating comment:", error.message || error);
     return null;
+  }
+};
+
+// --- ADS SERVICE ---
+
+const DEFAULT_ADS: AdConfig[] = [
+  {
+    position: 'sidebar_top',
+    title: 'Sidebar Atas (4:5)',
+    imageUrl: '',
+    linkUrl: '#',
+    isActive: false
+  },
+  {
+    position: 'sidebar_bottom',
+    title: 'Sidebar Bawah (1:1 Sticky)',
+    imageUrl: '',
+    linkUrl: '#',
+    isActive: false
+  }
+];
+
+export const getAds = async (): Promise<AdConfig[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('ads')
+      .select('*');
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      // Table exists but empty, check local storage
+      const local = localStorage.getItem('tbnews_ads_backup');
+      return local ? JSON.parse(local) : DEFAULT_ADS;
+    }
+
+    return data.map((item: any) => ({
+      id: item.id,
+      position: item.position,
+      title: item.title,
+      imageUrl: item.image_url,
+      linkUrl: item.link_url,
+      isActive: item.is_active
+    }));
+
+  } catch (error: any) {
+    console.warn("Could not fetch ads from Supabase (using fallback):", error.message);
+    const local = localStorage.getItem('tbnews_ads_backup');
+    const localData = local ? JSON.parse(local) : [];
+    
+    // Merge local data with default structure to ensure all slots exist
+    return DEFAULT_ADS.map(defAd => {
+        const found = localData.find((l: AdConfig) => l.position === defAd.position);
+        return found || defAd;
+    });
+  }
+};
+
+export const saveAd = async (ad: AdConfig): Promise<void> => {
+  // 1. Always save to LocalStorage as backup/cache
+  try {
+      const currentAds = await getAds();
+      const updatedAds = currentAds.map(a => a.position === ad.position ? ad : a);
+      localStorage.setItem('tbnews_ads_backup', JSON.stringify(updatedAds));
+  } catch (e) {
+      console.error("Local storage save failed", e);
+  }
+
+  // 2. Try Supabase
+  try {
+    // Check if ad exists for position
+    const { data: existing, error: fetchError } = await supabase
+      .from('ads')
+      .select('id')
+      .eq('position', ad.position)
+      .maybeSingle(); 
+
+    if (fetchError) throw fetchError;
+
+    const payload = {
+      position: ad.position,
+      title: ad.title,
+      image_url: ad.imageUrl,
+      link_url: ad.linkUrl,
+      is_active: ad.isActive
+    };
+
+    if (existing) {
+      const { error } = await supabase
+        .from('ads')
+        .update(payload)
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('ads')
+        .insert([payload]);
+      if (error) throw error;
+    }
+  } catch (error: any) {
+    // Graceful degradation: If DB fails, we already saved to localStorage, so we just warn
+    console.warn("Supabase save failed (using local only):", error.message);
   }
 };
