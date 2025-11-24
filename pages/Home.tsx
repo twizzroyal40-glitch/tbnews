@@ -87,7 +87,7 @@ export const Home: React.FC = () => {
         </div>
         
         {featuredArticles.length > 0 && (
-          <div className="relative w-full h-[400px] md:h-[500px] rounded-2xl overflow-hidden group shadow-lg border border-gray-100">
+          <div className="relative w-full h-[280px] sm:h-[400px] md:h-[450px] lg:h-[550px] rounded-2xl overflow-hidden group shadow-lg border border-gray-100 bg-gray-200">
              {/* Slides Container */}
              <div 
                className="flex h-full transition-transform duration-500 ease-out"
@@ -102,14 +102,14 @@ export const Home: React.FC = () => {
                       <img 
                         src={article.imageUrl} 
                         alt={article.title} 
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover object-center"
                       />
                       {/* Gradient Overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
                       
                       {/* Content Overlay - Simplified: Only Title */}
                       <div className="absolute bottom-0 left-0 w-full p-6 md:p-10 text-white">
-                         <h3 className="text-2xl md:text-4xl font-serif font-bold leading-tight mb-2 line-clamp-3 hover:text-red-200 transition-colors shadow-sm">
+                         <h3 className="text-xl md:text-3xl lg:text-4xl font-serif font-bold leading-tight mb-2 line-clamp-2 md:line-clamp-3 hover:text-red-200 transition-colors shadow-sm drop-shadow-md">
                             {article.title}
                          </h3>
                       </div>
@@ -120,13 +120,13 @@ export const Home: React.FC = () => {
              {/* Navigation Arrows */}
              <button 
                onClick={prevSlide}
-               className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-primary/80 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 transform -translate-x-4 group-hover:translate-x-0"
+               className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-primary/80 text-white p-2 md:p-3 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 transform -translate-x-4 group-hover:translate-x-0 z-10"
              >
                 <ChevronLeft size={24} />
              </button>
              <button 
                onClick={nextSlide}
-               className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-primary/80 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0"
+               className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-primary/80 text-white p-2 md:p-3 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 z-10"
              >
                 <ChevronRight size={24} />
              </button>
@@ -137,8 +137,8 @@ export const Home: React.FC = () => {
                   <button
                     key={idx}
                     onClick={(e) => { e.stopPropagation(); setCurrentSlide(idx); }}
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      currentSlide === idx ? 'w-8 bg-primary' : 'w-2 bg-white/50 hover:bg-white'
+                    className={`h-2 rounded-full transition-all duration-300 shadow-sm ${
+                      currentSlide === idx ? 'w-8 bg-primary' : 'w-2 bg-white/60 hover:bg-white'
                     }`}
                   />
                 ))}
