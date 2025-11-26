@@ -241,18 +241,38 @@ export const ArticleDetail: React.FC = () => {
                 const galleryMatch = paragraph.trim().match(/^\[GALLERY:(.*)\]$/);
                 if (galleryMatch) {
                    const urls = galleryMatch[1].split(',');
+                   const isSingle = urls.length === 1;
+
+                   if (isSingle) {
+                       // 1 Image: Render EXACTLY like [IMAGE:url]
+                       return (
+                           <figure key={idx} className="my-8 -mx-4 md:-mx-0">
+                               <img 
+                                   src={urls[0]} 
+                                   alt="Dokumentasi Galeri" 
+                                   className="w-full h-auto object-cover rounded-lg shadow-sm"
+                                   loading="lazy"
+                               />
+                               <figcaption className="text-center text-xs text-gray-500 mt-2 italic">
+                                   Dokumentasi: TB-News
+                               </figcaption>
+                           </figure>
+                       );
+                   }
+
+                   // Multiple Images: Render Larger Grid
                    return (
                      <div key={idx} className="my-8">
-                       <h4 className="text-sm font-bold text-gray-500 mb-2 uppercase tracking-wider">Galeri Foto</h4>
-                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                       <h4 className="text-sm font-bold text-gray-500 mb-4 uppercase tracking-wider border-b border-gray-100 pb-2">Galeri Foto</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          {urls.map((url, i) => (
-                            <div key={i} className="aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-100 cursor-pointer hover:opacity-90 transition-opacity">
-                              <img src={url} className="w-full h-full object-cover" alt={`Gallery ${i+1}`} loading="lazy" />
+                            <div key={i} className="bg-gray-100 rounded-lg overflow-hidden border border-gray-100 shadow-sm cursor-pointer hover:opacity-95 transition-opacity">
+                              <img src={url} className="w-full h-auto object-cover" alt={`Gallery ${i+1}`} loading="lazy" />
                             </div>
                          ))}
                        </div>
                        <figcaption className="text-center text-xs text-gray-500 mt-2 italic">
-                          Galeri Dokumentasi Kegiatan
+                          Galeri Dokumentasi Kegiatan ({urls.length} Foto)
                        </figcaption>
                      </div>
                    )

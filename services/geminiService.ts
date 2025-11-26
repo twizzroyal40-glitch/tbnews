@@ -19,7 +19,7 @@ const logServiceError = (context: string, error: any) => {
     console.error(
         `[Database Error] di '${context}': Tabel yang diperlukan tidak ditemukan. \n` +
         `Detail: ${message} \n` +
-        `Pastikan skema database Supabase Anda (misalnya, tabel 'articles', 'comments') telah diatur dengan benar.`
+        `Pastikan skema database Supabase Anda (misalnya, tabel 'articles', 'comments', 'media_library') telah diatur dengan benar.`
     );
   } else {
     console.warn(`[Service Error] di '${context}': ${message}`);
@@ -217,66 +217,105 @@ export const incrementArticleShare = async (id: string): Promise<number | null> 
   return await incrementField(id, 'share_count');
 };
 
-// --- IMAGE UPLOAD SERVICE ---
+// --- IMAGE UPLOAD SERVICE (CLOUDINARY + SUPABASE MIRROR) ---
+
 export const uploadArticleImage = async (file: File): Promise<string | null> => {
+  const cloudName = "dq6ewzqls";
+  const uploadPreset = "tbnews"; // Unsigned preset
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+
   try {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `${fileName}`;
+    // 1. Upload to Cloudinary
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
 
-    const { data, error } = await supabase.storage
-      .from('news-images')
-      .upload(filePath, file);
-
-    if (error) {
-      throw new Error(error.message);
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Gagal upload ke Cloudinary');
     }
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('news-images')
-      .getPublicUrl(filePath);
+    const data = await response.json();
+    const secureUrl = data.secure_url;
+    const publicId = data.public_id;
 
-    return publicUrl;
+    // 2. Save Reference to Supabase 'media_library' table
+    // This allows us to have a functioning Gallery without needing a backend to list Cloudinary assets
+    try {
+        await supabase.from('media_library').insert([
+            {
+                url: secureUrl,
+                public_id: publicId
+            }
+        ]);
+    } catch (dbError) {
+        console.warn("Failed to save image reference to DB, but upload succeeded.", dbError);
+    }
+
+    return secureUrl;
   } catch (error: any) {
     console.error("Error uploading image:", error.message || error);
     throw error;
   }
 };
 
-export const getGalleryImages = async (): Promise<{name: string, url: string}[]> => {
+export const getGalleryImages = async (): Promise<{name: string, url: string, id: string}[]> => {
   try {
-    const { data, error } = await supabase.storage
-      .from('news-images')
-      .list('', {
-        limit: 100,
-        offset: 0,
-        sortBy: { column: 'created_at', order: 'desc' },
-      });
+    // Fetch from Supabase 'media_library' table instead of Storage bucket
+    // This provides a much faster and reliable way to list Cloudinary images
+    const { data, error } = await supabase
+        .from('media_library')
+        .select('*')
+        .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    return data.map(file => {
-      const { data: { publicUrl } } = supabase.storage
-        .from('news-images')
-        .getPublicUrl(file.name);
-      return {
-        name: file.name,
-        url: publicUrl
-      };
-    });
+    return (data || []).map((item: any) => ({
+        id: item.id, // Supabase UUID
+        name: item.public_id || 'Uploaded Image',
+        url: item.url
+    }));
+
   } catch (error: any) {
     logServiceError("getGalleryImages", error);
-    return []; // Return empty array
+    return []; 
   }
 };
 
-export const deleteImage = async (fileName: string): Promise<void> => {
+export const deleteImage = async (identifier: string): Promise<void> => {
   try {
-    const { error } = await supabase.storage
-      .from('news-images')
-      .remove([fileName]);
+    // 1. Try Delete from 'media_library' table (Gallery Baru)
+    const { error } = await supabase
+      .from('media_library')
+      .delete()
+      .eq('id', identifier);
 
-    if (error) throw error;
+    if (error) {
+       // If deleting by ID failed, or table doesn't exist, proceed to check storage
+       console.warn("Failed to delete from media_library table:", error.message);
+    }
+
+    // 2. Legacy Support: Try delete from Storage Bucket (Gallery Lama)
+    // We attempt this regardless, just in case it was an old file
+    // Note: This often throws an error if file doesn't exist, which we can ignore
+    try {
+        await supabase.storage
+            .from('news-images')
+            .remove([identifier]);
+    } catch (e) {
+        // Ignore storage delete errors
+    }
+    
+    // Note: We cannot securely delete from Cloudinary Client-Side without a signed signature (Backend).
+    // So we just remove the reference from our DB so it disappears from the Gallery UI.
+    
   } catch (error: any) {
     console.error("Error deleting image:", error.message);
     throw error;
@@ -340,12 +379,26 @@ export const updateArticle = async (
 };
 
 export const deleteArticle = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('articles')
-    .delete()
-    .eq('id', id);
+  try {
+    // 1. Manual Cascade: Hapus Komentar terkait terlebih dahulu
+    // Ini mencegah error "Foreign Key Constraint" jika DB tidak di-set ON DELETE CASCADE
+    const { error: commentError } = await supabase
+      .from('comments')
+      .delete()
+      .eq('article_id', id);
 
-  if (error) {
+    if (commentError) {
+        console.warn("Gagal menghapus komentar terkait, melanjutkan penghapusan artikel...", commentError.message);
+    }
+
+    // 2. Hapus Artikel
+    const { error } = await supabase
+      .from('articles')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  } catch (error: any) {
     console.error("Error deleting article:", error.message);
     throw new Error(error.message);
   }

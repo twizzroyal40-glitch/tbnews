@@ -41,12 +41,12 @@ export const AdminPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // --- GALLERY STATE ---
-  const [galleryImages, setGalleryImages] = useState<{name: string, url: string}[]>([]);
+  const [galleryImages, setGalleryImages] = useState<{name: string, url: string, id: string}[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   
   // --- DELETE CONFIRMATION STATE (IMAGES) ---
-  const [deleteImageTarget, setDeleteImageTarget] = useState<string | null>(null);
+  const [deleteImageTarget, setDeleteImageTarget] = useState<string | null>(null); // Stores ID
   const [isDeletingImage, setIsDeletingImage] = useState(false);
 
   // --- ADS STATE ---
@@ -195,8 +195,8 @@ export const AdminPage: React.FC = () => {
     setTimeout(() => setCopiedUrl(null), 2000);
   };
 
-  const promptDeleteImage = (name: string) => {
-      setDeleteImageTarget(name);
+  const promptDeleteImage = (id: string) => {
+      setDeleteImageTarget(id);
   };
 
   const executeImageDelete = async () => {
@@ -205,7 +205,8 @@ export const AdminPage: React.FC = () => {
       setIsDeletingImage(true);
       try {
           await deleteImage(deleteImageTarget);
-          setGalleryImages(prev => prev.filter(img => img.name !== deleteImageTarget));
+          // Remove from local state immediately
+          setGalleryImages(prev => prev.filter(img => img.id !== deleteImageTarget));
           setDeleteImageTarget(null);
       } catch (e: any) {
           alert("Gagal menghapus: " + e.message);
@@ -875,7 +876,7 @@ export const AdminPage: React.FC = () => {
                                             {copiedUrl === img.url ? 'Tersalin' : 'Salin URL'}
                                         </button>
                                         <button 
-                                            onClick={() => promptDeleteImage(img.name)}
+                                            onClick={() => promptDeleteImage(img.id)}
                                             className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center hover:bg-red-700 w-full justify-center transform scale-95 hover:scale-100 transition-all"
                                         >
                                             <Trash2 size={14} className="mr-1" />
@@ -1105,11 +1106,25 @@ export const AdminPage: React.FC = () => {
                                 const galleryMatch = paragraph.trim().match(/^\[GALLERY:(.*)\]$/);
                                 if (galleryMatch) {
                                    const urls = galleryMatch[1].split(',');
+                                   const isSingle = urls.length === 1;
+
+                                   if (isSingle) {
+                                       return (
+                                            <div key={idx} className="my-6">
+                                                <img 
+                                                    src={urls[0]} 
+                                                    alt="Gallery Single" 
+                                                    className="w-full h-auto rounded-lg shadow-sm border border-gray-100"
+                                                />
+                                            </div>
+                                       )
+                                   }
+
                                    return (
-                                     <div key={idx} className="grid grid-cols-2 md:grid-cols-3 gap-2 my-6">
+                                     <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
                                        {urls.map((url, i) => (
-                                          <div key={i} className="aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-100">
-                                            <img src={url} className="w-full h-full object-cover" alt={`Gallery ${i}`} />
+                                          <div key={i} className="bg-gray-100 rounded-lg overflow-hidden border border-gray-100">
+                                            <img src={url} className="w-full h-auto object-cover" alt={`Gallery ${i}`} />
                                           </div>
                                        ))}
                                      </div>
